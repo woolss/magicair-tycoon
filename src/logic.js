@@ -178,7 +178,9 @@ export class Shift {
     if (q === 'popped') {
       this.nozzle = null;
       this.stats.popped++;
-      this.emit('pop', { color: nz.color });
+      // лопнула — одразу видно втрату: кулька + її гелій
+      const loss = this.cfg.items.latex.buy + heliumCost(this.cfg, this.cfg.items.latex.helium);
+      this.emit('pop', { color: nz.color, loss });
     } else {
       nz.state = 'ready';
       nz.quality = q;

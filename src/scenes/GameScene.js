@@ -1,7 +1,7 @@
 import { W, C, txt, drawBalloon } from '../theme.js';
 import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
-import { Shift, makeRng, summarize, bundleMatches } from '../logic.js';
+import { Shift, makeRng, summarize, bundleMatches, heliumCost } from '../logic.js';
 
 const SLOT_X = [130, 360, 590];
 const SHELF_Y = 1170;
@@ -135,7 +135,7 @@ export class GameScene extends Phaser.Scene {
       }
       case 'pick': this.pickAnim = { color: e.color, from: SHELF_X[this.colors.indexOf(e.color)], t: 0 }; break;
       case 'inflated': this.floatText(NOZZLE.x, 790, t(e.quality === 'perfect' ? 'perfect' : 'under'), e.quality === 'perfect' ? C.green : C.greyDark); break;
-      case 'pop': this.burst(NOZZLE.x, 880, CONFIG.colors[e.color]); this.floatText(NOZZLE.x, 780, t('pop'), C.red); break;
+      case 'pop': this.burst(NOZZLE.x, 880, CONFIG.colors[e.color]); this.floatText(NOZZLE.x, 780, `${t('pop')} −${e.loss} ₴`, C.red); break;
       case 'tie': {
         // кулька видимо летить на прилавок у зв'язку
         this.renderBundle();
@@ -221,7 +221,9 @@ export class GameScene extends Phaser.Scene {
     const left = Math.ceil(s.timeLeft);
     this.timerText.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`);
     this.timerText.setColor(left <= 10 ? '#ffe066' : '#ffffff');
-    this.moneyText.setText(`${this.money + s.stats.revenue + s.stats.tips} ₴`);
+    // каса наживо: продажі мінус закуплені кульки й гелій (оренда — в кінці дня)
+    const live = this.money + s.stats.revenue + s.stats.tips - s.stats.balloonsBought * CONFIG.items.latex.buy - heliumCost(CONFIG, s.stats.heliumUsed);
+    this.moneyText.setText(`${live} ₴`);
 
     // терпіння
     let readyFor = false;

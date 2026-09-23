@@ -24,7 +24,7 @@ export const CONFIG = {
 
   // Надування: заповнення 0→1 за fullSec, поки тримаєш палець.
   // [0, greenMin) — недодув, [greenMin, greenMax] — ідеально, > greenMax — лопнула.
-  pump: { fullSec: 2.4 },
+  pump: { fullSec: 1.8 },
   inflate: { greenMin: 0.6, greenMax: 0.82, underSellMul: 0.6 },
 
   customers: {
