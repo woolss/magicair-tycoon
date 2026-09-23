@@ -165,7 +165,7 @@ export class Shift {
       if (gone) {
         this.customers[i] = null;
         this.stats.lost++;
-        this.emit('leave', { slot: i, noStock: !!cust.noStock, order: cust.order });
+        this.emit('leave', { slot: i, id: cust.id, noStock: !!cust.noStock, order: cust.order });
       }
     }
     const before = this.queue.length;
@@ -286,7 +286,7 @@ export class Shift {
     this.stats.served++;
     this.bundle = [];
     this.customers[slot] = null;
-    this.emit('sale', { slot, value, tip });
+    this.emit('sale', { slot, id: cust.id, order: cust.order, value, tip });
     return { value, tip };
   }
 }
