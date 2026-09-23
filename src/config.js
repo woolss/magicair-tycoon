@@ -51,7 +51,7 @@ export const CONFIG = {
 
   bundleMax: 8,         // кульок у зв'язці на прилавку
 
-  rent: 40,             // оренда точки за день
+  rent: 90,             // оренда точки за день
   salary: 50,           // зарплата продавцю за день
 
   // Апгрейди ступенів 1–2 (порядок = порядок у списку)
@@ -62,7 +62,21 @@ export const CONFIG = {
     { id: 'foil',     price: 600, req: null,    effect: { unlock: 'foil' } },
     { id: 'tank200',  price: 500, req: null,    effect: { tank: 200 } },
     { id: 'pump3',    price: 900, req: 'pump2', effect: { pump: 2 } },
+    { id: 'online',   price: 1200, req: 'foil', effect: { online: true } },
   ],
+
+  // Онлайн-замовлення з доставкою (апгрейд «online»): одне за раз, більший набір, більше часу, кур'єр забирає коробку
+  online: {
+    firstAtSec: 20,      // перше замовлення після початку зміни
+    gapMinSec: 10,       // пауза після виконаного/пропущеного
+    gapMaxSec: 20,
+    retrySec: 8,         // не вистачає товару — спробувати пізніше
+    timeSec: 75,         // скільки чекає замовлення
+    lastAtSec: 40,       // ближче до кінця зміни нові не приходять
+    latexMin: 2, latexMax: 4, foilMin: 1, foilMax: 2, confettiChance: 0.4,
+    fee: 60,             // оплата доставки
+    tipIfWithinSec: 35,  // упакував швидко — чайові
+  },
 
   // Зірки за частку обслужених клієнтів
   stars: [0.7, 0.9],    // ≥0.7 → 2★, ≥0.9 → 3★, інакше 1★

@@ -26,8 +26,11 @@ export function playShift(s, skill, rng) {
       continue;
     }
     if (nz?.state === 'ready') { s.tie(); busy = skill.move * 0.6; continue; }
-    if (!target || !s.customers.includes(target)) {
-      target = s.customers.filter((c) => c && !c.noStock).sort((a, b) => a.arrivedAt - b.arrivedAt)[0] || null;
+    const gone = target && (target.online ? s.online !== target.online : !s.customers.includes(target));
+    if (!target || gone) {
+      // живий клієнт першим; онлайн — коли нікого нема або до кінця терміну < 30 с
+      const walk = s.customers.filter((c) => c && !c.noStock).sort((a, b) => a.arrivedAt - b.arrivedAt)[0] || null;
+      target = s.online && (!walk || s.online.deadline - s.t < 30) ? { online: s.online, order: s.online.order } : walk;
       if (s.bundle.length) { while (s.bundle.length) s.discard(0); }
     }
     if (!target) continue;
@@ -39,13 +42,13 @@ export function playShift(s, skill, rng) {
       busy = skill.move; aim = aimCenter + gauss(rng) * skill.aimSd; continue;
     }
     if (nz?.state === 'empty') { s.startInflate(); continue; }
-    if (!next) { s.give(target.slot); target = null; busy = skill.move; }
+    if (!next) { if (target.online) s.pack(); else s.give(target.slot); target = null; busy = skill.move; }
   }
 }
 
 // Скільки тримати на складі (≈ попит дня з запасом)
 function stockTargets(open) {
-  const t = { pink: 22, blue: 22, yellow: 22, confetti: 16, heart: 14, star: 14 };
+  const t = { pink: 26, blue: 26, yellow: 26, confetti: 18, heart: 20, star: 20 };
   return Object.fromEntries(open.map((k) => [k, t[k]]));
 }
 

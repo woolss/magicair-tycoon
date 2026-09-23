@@ -17,7 +17,7 @@ const pickOne = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 
 // Що дають куплені апгрейди: насос, потік клієнтів, балон, відкриті товари
 export function deriveParams(cfg, owned = []) {
-  let pump = 0, flow = 1, tank = cfg.helium.tank;
+  let pump = 0, flow = 1, tank = cfg.helium.tank, online = false;
   const unlocked = new Set();
   for (const u of cfg.upgrades) {
     if (!owned.includes(u.id)) continue;
@@ -26,6 +26,7 @@ export function deriveParams(cfg, owned = []) {
     if (e.flow) flow *= e.flow;
     if (e.tank) tank = Math.max(tank, e.tank);
     if (e.unlock) unlocked.add(e.unlock);
+    if (e.online) online = true;
   }
   const open = Object.keys(cfg.items).filter((k) => {
     const u = cfg.items[k].unlock;
@@ -34,7 +35,7 @@ export function deriveParams(cfg, owned = []) {
   const p = cfg.pumps[pump];
   return {
     pump, fullSec: p.fullSec, greenMin: cfg.inflate.greenMin, greenMax: p.greenMax,
-    gapSec: cfg.customers.baseGapSec / flow, tank, open,
+    gapSec: cfg.customers.baseGapSec / flow, tank, open, online,
   };
 }
 
@@ -51,6 +52,21 @@ export function makeOrder(cfg, rng, open) {
     const m = randInt(rng, 1, 2);
     for (let i = 0; i < m; i++) add(pickOne(rng, ['heart', 'star']), 1);
   }
+  return order;
+}
+
+// Онлайн-замовлення: більший набір — латекс 2–4, фольга 1–2, іноді конфеті
+export function makeOnlineOrder(cfg, rng, open) {
+  const o = cfg.online, order = {};
+  const add = (k, n) => { order[k] = (order[k] || 0) + n; };
+  const latex = open.filter((k) => cfg.items[k].kind === 'latex');
+  const n = randInt(rng, o.latexMin, o.latexMax);
+  for (let i = 0; i < n; i++) add(pickOne(rng, latex), 1);
+  if (open.includes('heart')) {
+    const m = randInt(rng, o.foilMin, o.foilMax);
+    for (let i = 0; i < m; i++) add(pickOne(rng, ['heart', 'star']), 1);
+  }
+  if (open.includes('confetti') && rng() < o.confettiChance) add('confetti', 1);
   return order;
 }
 
@@ -101,6 +117,7 @@ export function summarize(cfg, st, moneyBefore) {
     revenue: st.revenue, tips: st.tips, helium, rent, salary, profit,
     moneyBefore, moneyAfter,
     served: st.served, lost: st.lost, popped: st.popped, poppedValue: st.poppedValue,
+    onlineDone: st.onlineDone || 0, onlineMissed: st.onlineMissed || 0,
     stars: starsFor(cfg, st.served, st.lost),
   };
 }
@@ -124,7 +141,9 @@ export class Shift {
     this.helium = this.p.tank;
     this.refillLeft = 0;
     this.events = [];
-    this.stats = { revenue: 0, tips: 0, served: 0, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 0 };
+    this.stats = { revenue: 0, tips: 0, served: 0, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 0, onlineDone: 0, onlineMissed: 0 };
+    this.online = null;        // поточне онлайн-замовлення {id, order, at, deadline} — лише одне
+    this.nextOnline = this.p.online ? cfg.online.firstAtSec : Infinity;
   }
 
   get timeLeft() { return Math.max(0, this.duration - this.t); }
@@ -184,6 +203,22 @@ export class Shift {
     // Черга заходить на вільні місця
     for (let i = 0; i < this.customers.length && this.queue.length; i++) {
       if (!this.customers[i]) { this.seat(i, this.queue.shift()); this.emit('queue'); }
+    }
+
+    // Онлайн-замовлення: одне за раз; не встиг — скасовується
+    const on = c.online;
+    if (this.online && this.t >= this.online.deadline) {
+      this.stats.lost++; this.stats.onlineMissed++;
+      this.emit('onlineMissed', { id: this.online.id });
+      this.online = null;
+      this.nextOnline = this.t + on.gapMinSec + this.rng() * (on.gapMaxSec - on.gapMinSec);
+    }
+    if (!this.online && this.t >= this.nextOnline && this.t < this.duration - on.lastAtSec) {
+      const order = makeOnlineOrder(c, this.rng, this.p.open);
+      if (this.canFulfil(order)) {
+        this.online = { id: this.nextId++, order, at: this.t, deadline: this.t + on.timeSec };
+        this.emit('onlineNew', { id: this.online.id, order });
+      } else this.nextOnline = this.t + on.retrySec;
     }
 
     // Надування
@@ -295,6 +330,35 @@ export class Shift {
     return true;
   }
 
+  // Тап по чеку онлайн-замовлення — упакувати зв'язку в коробку для кур'єра
+  pack() {
+    const ord = this.online;
+    if (this.over || !ord || !this.bundle.length) return null;
+    if (!bundleCovers(ord.order, this.bundle)) { this.emit('onlineMismatch'); return null; }
+    const { taken, rest } = this.takeFromBundle(ord.order);
+    const balloons = taken.reduce((s, b) => s + balloonPrice(this.cfg, b), 0);
+    const on = this.cfg.online;
+    const tip = this.t - ord.at <= on.tipIfWithinSec ? Math.round(balloons * this.cfg.customers.tipMul) : 0;
+    const value = balloons + on.fee;
+    this.stats.revenue += value;
+    this.stats.tips += tip;
+    this.stats.served++; this.stats.onlineDone++;
+    this.bundle = rest;
+    this.online = null;
+    this.nextOnline = this.t + on.gapMinSec + this.rng() * (on.gapMaxSec - on.gapMinSec);
+    this.emit('onlinePacked', { id: ord.id, order: ord.order, value, tip });
+    return { value, tip };
+  }
+
+  // Зі зв'язки беремо лише потрібне замовленню, решта лишається на прилавку
+  takeFromBundle(order) {
+    const need = { ...order }, taken = [], rest = [];
+    for (const b of this.bundle) {
+      if (need[b.key] > 0) { need[b.key]--; taken.push(b); } else rest.push(b);
+    }
+    return { taken, rest };
+  }
+
   // Тап по клієнту — віддати зв'язку
   give(slot) {
     const cust = this.customers[slot];
@@ -304,10 +368,7 @@ export class Shift {
       return null;
     }
     // клієнт забирає тільки своє, зайві кульки лишаються на прилавку
-    const need = { ...cust.order }, taken = [], rest = [];
-    for (const b of this.bundle) {
-      if (need[b.key] > 0) { need[b.key]--; taken.push(b); } else rest.push(b);
-    }
+    const { taken, rest } = this.takeFromBundle(cust.order);
     const value = taken.reduce((s, b) => s + balloonPrice(this.cfg, b), 0);
     const fast = this.t - cust.seatedAt <= this.cfg.customers.tipIfWithinSec;
     const tip = fast ? Math.round(value * this.cfg.customers.tipMul) : 0;
