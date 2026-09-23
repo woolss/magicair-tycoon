@@ -176,18 +176,18 @@ export class GameScene extends Phaser.Scene {
   drawBubble(b, cust) {
     const entries = Object.entries(cust.order);
     const cols = Math.min(2, entries.length), rows = Math.ceil(entries.length / 2);
-    const CW = 46, CH = 46, w = 14 + cols * CW, h = 12 + rows * CH;
+    const CW = 38, CH = 38, w = 12 + cols * CW, h = 10 + rows * CH;
     const g = this.add.graphics();
-    g.fillStyle(0x3a1f45, 0.2).fillRoundedRect(-w / 2, -h + 4, w, h, 20);
-    g.fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h, w, h, 20).fillTriangle(-10, -1, 10, -1, 0, 14);
+    g.fillStyle(0x3a1f45, 0.2).fillRoundedRect(-w / 2, -h + 4, w, h, 16);
+    g.fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h, w, h, 16).fillTriangle(-9, -1, 9, -1, 0, 12);
     b.add(g);
     entries.forEach(([key, n], i) => {
       const row = Math.floor(i / cols), inRow = Math.min(cols, entries.length - row * cols);
-      const ix = (i % cols - (inRow - 1) / 2) * CW, iy = -h + 6 + CH / 2 + row * CH;
-      drawItem(g, ITEM(key), ix - 2, iy - 2, 15);
+      const ix = (i % cols - (inRow - 1) / 2) * CW, iy = -h + 5 + CH / 2 + row * CH;
+      drawItem(g, ITEM(key), ix - 2, iy - 2, 12);
       if (n > 1) {
-        g.fillStyle(C.magenta, 1).fillCircle(ix + 14, iy + 12, 11);
-        b.add(this.add.text(ix + 14, iy + 12, String(n), txt(15, C.white)).setOrigin(0.5));
+        g.fillStyle(C.magenta, 1).fillCircle(ix + 11, iy + 10, 9);
+        b.add(this.add.text(ix + 11, iy + 10, String(n), txt(13, C.white)).setOrigin(0.5));
       }
     });
     if (cust.noStock) {
@@ -415,7 +415,7 @@ export class GameScene extends Phaser.Scene {
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
       if (s.bundle.length && !c.noStock && bundleCovers(c.order, s.bundle)) {
-        v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 24);
+        v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
         readyFor = true;
       }
       v.bar.fillStyle(C.white, 0.9).fillRoundedRect(-36, top - 16, 72, 9, 4.5)
