@@ -136,4 +136,7 @@ export const shiftOver = () => [784, 988, 1175, 1568].forEach((f, i) => tone({ f
 export const star = (i) => tone({ f: [880, 1109, 1319][i] || 1319, type: 'triangle', dur: 0.35, vol: 0.14 });
 export const count = () => { if (throttle('count', 45)) tone({ f: 1400, dur: 0.025, vol: 0.04 }); };
 export const buy = () => { coin(); tone({ f: 2349, type: 'triangle', dur: 0.25, vol: 0.08, at: 0.12 }); };
+// телефон: нове онлайн-замовлення
+export const phone = () => [0, 0.16, 0.5, 0.66].forEach((at) => { tone({ f: 1320, type: 'square', dur: 0.1, vol: 0.05, at }); tone({ f: 1760, type: 'square', dur: 0.1, vol: 0.04, at: at + 0.05 }); });
+export const pack = () => { noise({ dur: 0.12, vol: 0.3, freq: 500, type: 'lowpass' }); tone({ f: 660, f2: 990, type: 'triangle', dur: 0.12, vol: 0.12, at: 0.08 }); };
 export const upgrade = () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, type: 'triangle', dur: i === 4 ? 0.45 : 0.12, vol: 0.12, at: i * 0.08 }));
