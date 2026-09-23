@@ -4,6 +4,7 @@ import { StartScene } from './scenes/StartScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { SummaryScene } from './scenes/SummaryScene.js';
 import { ShopScene } from './scenes/ShopScene.js';
+import { unlock } from './sfx.js';
 
 // Параметри для тестів: ?shift=20 (секунд у зміні), ?seed=1, ?lang=ru
 const q = new URLSearchParams(location.search);
@@ -13,6 +14,9 @@ const opts = {
 };
 setLang(q.get('lang') || 'uk');
 
+// звук дозволяється лише після дотику до екрана
+for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, unlock, { passive: true });
+
 async function boot() {
   try { await document.fonts.load('800 32px Nunito'); } catch (_) { /* без шрифту теж працює */ }
   const game = new Phaser.Game({
@@ -21,6 +25,7 @@ async function boot() {
     backgroundColor: C.bg,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H },
     input: { activePointers: 2 },
+    audio: { noAudio: true },   // свої звуки в sfx.js
     scene: [StartScene, GameScene, SummaryScene, ShopScene],
   });
   game.registry.set('opts', opts);
