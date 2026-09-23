@@ -24,6 +24,8 @@ const BUBBLE_Y = -168;                          // низ хмаринки на�
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
 const shadeDark = 0xa10e93;
 const MONEY_ICON = { x: 48, y: 55 };             // куди летять монетки
+const TICKET = { x: 544, y: 140, w: 162, h: 176 }; // чек онлайн-замовлення — праворуч угорі
+const COURIER = { shirt: 0xff8a3d, pants: 0x2f2f44, skin: 0xf2c3a0, hair: 0x2b1a12 };
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
 
 export class GameScene extends Phaser.Scene {
@@ -44,6 +46,7 @@ export class GameScene extends Phaser.Scene {
     this.lastSec = null;
     this.squashAt = -1e9;
     this.ending = false;
+    this.couriers = [];
 
     this.cameras.main.setBackgroundColor(0x3b2250);
 
@@ -73,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on('gameout', up);
 
     this.renderBundle();
+    this.buildTicket();
     soundToggle(this, 48, 178);
     this.events.once('shutdown', () => sfx.inflateStop());
     if (typeof window !== 'undefined') window.__scene = this;
@@ -242,6 +246,7 @@ export class GameScene extends Phaser.Scene {
     const nz = s.nozzle;
     if (nz && nz.state === 'inflating') { sfx.inflateStart(); sfx.inflateLevel(nz.fill); } else sfx.inflateStop();
     this.syncPeople(deltaMs / 1000);
+    this.moveCouriers(deltaMs / 1000);
     this.renderDynamic(deltaMs / 1000);
   }
 
@@ -310,6 +315,18 @@ export class GameScene extends Phaser.Scene {
       case 'bundleFull': this.floatText(W / 2, 1000, t('bundleFull'), C.red); sfx.wrong(); break;
       case 'noHelium': this.floatText(130, 150, t('refill', { s: Math.ceil(s.refillLeft) }), C.red); sfx.noHelium(); break;
       case 'refilled': sfx.refilled(); break;
+      case 'onlineNew': this.showTicket(e.order); sfx.phone(); break;
+      case 'onlineMismatch':
+        this.tweens.add({ targets: this.ticket, x: this.ticketX + 10, duration: 50, yoyo: true, repeat: 2 });
+        this.floatText(TICKET.x + TICKET.w / 2, TICKET.y + TICKET.h + 30, t('mismatch'), C.red);
+        sfx.wrong();
+        break;
+      case 'onlinePacked': this.hideTicket(true); this.sendCourier(e.value + e.tip, e.tip); sfx.pack(); break;
+      case 'onlineMissed':
+        this.hideTicket(false);
+        this.floatText(W - 230, TICKET.y + TICKET.h + 30, t('cancelled'), C.red);
+        sfx.leave();
+        break;
       case 'end': {
         // кульки на соплі й у зв'язці повертаються на склад
         const back = { ...s.stock };
@@ -424,6 +441,21 @@ export class GameScene extends Phaser.Scene {
     if (!this.pickAnim && nz) {
       hint = nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
     }
+    // онлайн-чек: смужка часу й підсвітка, коли зв'язка підходить
+    const tb = this.ticketBar.clear();
+    let packReady = false;
+    if (s.online) {
+      const f = Math.max(0, (s.online.deadline - s.t) / CONFIG.online.timeSec);
+      const { w, h } = TICKET;
+      tb.fillStyle(0xe6dcea, 1).fillRoundedRect(14, h - 22, w - 28, 10, 5)
+        .fillStyle(f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red, 1).fillRoundedRect(14, h - 22, Math.max(10, (w - 28) * f), 10, 5);
+      if (s.bundle.length && bundleCovers(s.online.order, s.bundle)) {
+        tb.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-3, -3, w + 6, h + 6, 20);
+        packReady = true;
+      }
+      this.ticket.angle = f < 0.25 ? Math.sin(this.time.now / 55) * 3 : 0;
+    }
+    if (packReady && !nz) hint = t('packHint');
     if (readyFor && !nz) hint = t('giveHint');
 
     // підказка-плашка
@@ -431,7 +463,7 @@ export class GameScene extends Phaser.Scene {
     this.hintBg.clear();
     if (hint) {
       const w = this.hintText.width + 40;
-      this.hintBg.fillStyle(hint === t('giveHint') ? C.green : C.purple, 1).fillRoundedRect(300 - w / 2, HINT_Y, w, 44, 22);
+      this.hintBg.fillStyle(hint === t('giveHint') || hint === t('packHint') ? C.green : C.purple, 1).fillRoundedRect(300 - w / 2, HINT_Y, w, 44, 22);
     }
 
     // маркер шкали
@@ -468,6 +500,106 @@ export class GameScene extends Phaser.Scene {
       .fillStyle(C.white, 1).fillCircle(BTN.x, BTN.y, BTN.r + 12).fillStyle(col, 1).fillCircle(BTN.x, BTN.y, r);
     this.btnText.setText(label).setFontSize(label.includes('\n') ? 24 : 28);
     this.btnSub.setText(sub);
+  }
+
+  // ---------- онлайн-замовлення ----------
+  buildTicket() {
+    const { x, y, w, h } = TICKET;
+    this.ticket = this.add.container(W + 20, y).setDepth(110).setVisible(false);
+    this.ticketBody = this.add.container(0, 0);
+    this.ticketBar = this.add.graphics();
+    this.ticket.add([this.ticketBody, this.ticketBar]);
+    this.ticket.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains)
+      .on('pointerdown', () => this.shift.pack());
+    this.ticketX = x;
+  }
+
+  showTicket(order) {
+    const { w, h } = TICKET, b = this.ticketBody;
+    b.removeAll(true);
+    const g = this.add.graphics();
+    g.fillStyle(0x3a1f45, 0.25).fillRoundedRect(0, 5, w, h, 18);
+    g.fillStyle(C.white, 1).fillRoundedRect(0, 0, w, h, 18);
+    g.fillStyle(C.purple, 1).fillRoundedRect(0, 0, w, 40, { tl: 18, tr: 18, bl: 0, br: 0 });
+    // телефончик у шапці
+    g.fillStyle(C.white, 1).fillRoundedRect(14, 8, 16, 25, 4).fillStyle(C.purple, 1).fillRect(17, 12, 10, 15);
+    b.add(g);
+    b.add(this.add.text(40, 20, t('online'), txt(20, C.white)).setOrigin(0, 0.5));
+    Object.entries(order).forEach(([key, n], i) => {
+      const cx = 30 + (i % 3) * 51, cy = 70 + Math.floor(i / 3) * 46;
+      drawItem(g, ITEM(key), cx, cy - 4, 13);
+      b.add(this.add.text(cx + 14, cy + 12, `×${n}`, txt(15, C.ink)).setOrigin(0.5));
+    });
+    this.tweens.killTweensOf(this.ticket);
+    this.ticket.setVisible(true).setAlpha(1).setAngle(0).setPosition(W + 20, TICKET.y);
+    this.tweens.add({ targets: this.ticket, x: this.ticketX, duration: 380, ease: 'Back.easeOut' });
+  }
+
+  hideTicket(done) {
+    this.tweens.killTweensOf(this.ticket);
+    this.ticket.setAngle(0);
+    this.tweens.add({
+      targets: this.ticket, x: W + 20, y: done ? TICKET.y : TICKET.y + 40, alpha: done ? 1 : 0, duration: 350, ease: 'Cubic.easeIn',
+      onComplete: () => this.ticket.setVisible(false).setAlpha(1).setY(TICKET.y),
+    });
+  }
+
+  // Коробка на прилавку, кур'єр приходить, забирає, гроші летять у касу
+  sendCourier(cash, tip) {
+    this.heldCash += cash;                 // гроші «приїдуть» разом із кур'єром
+    const [bx, by] = P(...SPOT.box);
+    const box = this.add.container(bx, by).setDepth(4);
+    const bg = this.add.graphics();
+    [[-12, -44, 0xff5fb8], [4, -52, 0x4fa3ff], [16, -40, 0xffc933]].forEach(([x, y, col]) => drawItem(bg, { kind: 'latex', color: col }, x, y, 11));
+    bg.fillStyle(0xa10e93, 1).fillRoundedRect(-24, -26, 48, 30, 5);
+    bg.fillStyle(C.magenta, 1).fillRoundedRect(-24, -30, 48, 30, 5);
+    bg.fillStyle(C.gold, 1).fillRect(-4, -30, 8, 30).fillRect(-24, -19, 48, 7);
+    box.add(bg);
+    box.setScale(0);
+    this.tweens.add({ targets: box, scale: 1, duration: 250, ease: 'Back.easeOut' });
+
+    const c = this.add.container(0, 0);
+    const front = this.add.graphics(); drawPerson(front, COURIER, false);
+    const back = this.add.graphics(); drawPerson(back, COURIER, true);
+    // кепка й термосумка кур'єра
+    front.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath().fillRoundedRect(-4, -134, 34, 8, 4);
+    front.fillStyle(0xd96a20, 1).fillRect(-24, -104, 6, 50).fillRect(18, -104, 6, 50);
+    back.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath();
+    back.fillStyle(0xd96a20, 1).fillRoundedRect(-28, -116, 56, 58, 8).fillStyle(0xffffff, 0.9).fillRect(-18, -92, 36, 6);
+    const hands = this.add.container(0, 0);
+    c.add([front, back, hands]);
+    this.couriers.push({ c, front, back, hands, box, cash, tip, pos: [...SPOT.courierFrom], target: SPOT.courier, phase: 'in', waitUntil: 0 });
+  }
+
+  moveCouriers(dt) {
+    for (const k of [...this.couriers]) {
+      const dx = k.target[0] - k.pos[0], dy = k.target[1] - k.pos[1];
+      const dist = Math.hypot(dx, dy), moving = dist > 0.02;
+      if (moving) { const st = Math.min(dist, WALK * dt); k.pos[0] += (dx / dist) * st; k.pos[1] += (dy / dist) * st; }
+      const [sx, sy] = P(k.pos[0], k.pos[1]);
+      const bob = moving ? -Math.abs(Math.sin(this.time.now / 90)) * 4 : 0;
+      k.c.setPosition(sx, sy + bob).setDepth(10 + sy / 2000);
+      const faceUs = !moving || dx + dy > 0;
+      k.front.setVisible(faceUs); k.back.setVisible(!faceUs);
+      if (k.phase === 'in' && !moving) {
+        // забирає коробку з прилавка
+        k.phase = 'take';
+        const [hx, hy] = [sx - 34, sy - 70];
+        this.tweens.add({
+          targets: k.box, x: hx, y: hy, duration: 300, ease: 'Sine.easeInOut',
+          onComplete: () => {
+            k.box.setPosition(-34, -70); k.hands.add(k.box);
+            this.heldCash -= k.cash;
+            this.flyCoins(sx, sy - 160, Math.min(8, 3 + Math.round(k.cash / 40)), k.cash);
+            if (k.tip) sfx.tip();
+            k.phase = 'out'; k.target = SPOT.courierFrom;
+          },
+        });
+      } else if (k.phase === 'out' && !moving) {
+        this.couriers.splice(this.couriers.indexOf(k), 1);
+        k.c.destroy();
+      }
+    }
   }
 
   floatText(x, y, str, color) {
