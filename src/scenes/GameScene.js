@@ -4,6 +4,8 @@ import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, lookFor } from '../iso.js';
+import { coinIcon, soundToggle } from '../ui.js';
+import * as sfx from '../sfx.js';
 
 const ITEM = (k) => CONFIG.items[k];
 const BTN = { x: 606, y: 1168, r: 84 };        // кнопка «Тримай / Зав'язати»
@@ -20,6 +22,8 @@ function barSlots(n) {
 }
 const BUBBLE_Y = -168;                          // низ хмаринки над головою
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
+const shadeDark = 0xa10e93;
+const MONEY_ICON = { x: 48, y: 55 };             // куди летять монетки
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
 
 export class GameScene extends Phaser.Scene {
@@ -35,6 +39,11 @@ export class GameScene extends Phaser.Scene {
     this.pickAnim = null;
     this.flash = {};
     this.floatAt = {};
+    this.shownMoney = this.run.money;             // каса на екрані «набігає» до справжньої
+    this.heldCash = 0;                            // гроші, що ще летять монетками в касу
+    this.lastSec = null;
+    this.squashAt = -1e9;
+    this.ending = false;
 
     this.cameras.main.setBackgroundColor(0x3b2250);
 
@@ -48,6 +57,7 @@ export class GameScene extends Phaser.Scene {
     drawCounter(this, tankTop);
     this.nozzle = P(...SPOT.nozzle);
     this.dyn = this.add.graphics().setDepth(3);
+    this.nzG = this.add.graphics().setDepth(3);  // кулька на соплі — окремо, щоб пружинила
     this.bundleView = this.add.container(0, 0).setDepth(4);
 
     // Тап по кульці на соплі — те саме, що кнопка
@@ -63,6 +73,8 @@ export class GameScene extends Phaser.Scene {
     this.input.on('gameout', up);
 
     this.renderBundle();
+    soundToggle(this, 48, 178);
+    this.events.once('shutdown', () => sfx.inflateStop());
     if (typeof window !== 'undefined') window.__scene = this;
   }
 
@@ -78,7 +90,7 @@ export class GameScene extends Phaser.Scene {
   buildHud() {
     this.pill(20, 30, 210, 50);
     const g = this.add.graphics().setDepth(101);
-    g.fillStyle(C.green, 1).fillRoundedRect(32, 44, 32, 22, 4).fillStyle(C.white, 0.7).fillCircle(48, 55, 6);
+    coinIcon(g, MONEY_ICON.x, MONEY_ICON.y, 15);
     this.moneyText = this.add.text(76, 55, '', txt(24, C.ink)).setOrigin(0, 0.5).setDepth(101);
     this.pill(20, 92, 210, 50);
     g.fillStyle(0x4f8dff, 1).fillRoundedRect(39, 102, 18, 30, 8).fillStyle(0x7c8a99, 1).fillRect(44, 97, 8, 6);
@@ -152,6 +164,7 @@ export class GameScene extends Phaser.Scene {
     const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, cust, pos: [...SPOT.door], target: [...SPOT.door], slot: -1, state: 'in' };
     c.on('pointerdown', () => { if (v.slot >= 0) this.shift.give(v.slot); });
     this.people.set(cust.id, v);
+    sfx.arrive();
     return v;
   }
 
@@ -196,8 +209,12 @@ export class GameScene extends Phaser.Scene {
       const moving = dist > 0.02;
       if (moving) { v.pos[0] += (dx / dist) * step; v.pos[1] += (dy / dist) * step; }
       const [sx, sy] = P(v.pos[0], v.pos[1]);
-      const bob = moving ? -Math.abs(Math.sin(this.time.now / 90)) * 4 : 0;
-      v.c.setPosition(sx, sy + bob).setDepth(10 + sy / 2000);
+      let bob = moving ? -Math.abs(Math.sin(this.time.now / 90)) * 4 : 0, shake = 0;
+      const kh = (this.time.now - (v.hopAt || -1e9)) / 420;    // радіє — підстрибує
+      if (kh < 1) bob -= Math.sin(kh * Math.PI) * 34;
+      const ks = (this.time.now - (v.shakeAt || -1e9)) / 400;  // сердиться — мотає
+      if (ks < 1) shake = Math.sin(ks * Math.PI * 6) * 9 * (1 - ks);
+      v.c.setPosition(sx + shake, sy + bob).setDepth(10 + sy / 2000);
       const faceUs = moving && dx + dy > 0;
       v.front.setVisible(faceUs); v.back.setVisible(!faceUs);
       v.bubble.setVisible(!moving && v.slot >= 0);
@@ -221,8 +238,11 @@ export class GameScene extends Phaser.Scene {
       this.pickAnim.t += deltaMs / 180;
       if (this.pickAnim.t >= 1) this.pickAnim = null;
     }
+    // шипіння гелію — поки кулька надувається
+    const nz = s.nozzle;
+    if (nz && nz.state === 'inflating') { sfx.inflateStart(); sfx.inflateLevel(nz.fill); } else sfx.inflateStop();
     this.syncPeople(deltaMs / 1000);
-    this.renderDynamic();
+    this.renderDynamic(deltaMs / 1000);
   }
 
   barPos(key) { const sl = this.slots[this.keys.indexOf(key)]; return [sl.x, sl.y]; }
@@ -232,7 +252,8 @@ export class GameScene extends Phaser.Scene {
     switch (e.type) {
       case 'leave': {
         const v = this.people.get(e.id);
-        if (v) this.floatText(v.c.x, v.c.y - 250, e.noStock ? t('noStock') : '☹', C.red);
+        if (v) { this.floatText(v.c.x, v.c.y - 250, e.noStock ? t('noStock') : '☹', C.red); v.shakeAt = this.time.now; }
+        sfx.leave();
         break;
       }
       case 'sale': {
@@ -246,28 +267,36 @@ export class GameScene extends Phaser.Scene {
             drawItem(v.hands, ITEM(k), bx, by, 15);
           });
           this.floatText(v.c.x, v.c.y - 250, `+${e.value}` + (e.tip ? ` (+${e.tip})` : '') + ' ₴', C.green);
+          v.hopAt = this.time.now;
+          this.heartPop(v.c.x + 20, v.c.y - 200);
+          this.flyCoins(v.c.x, v.c.y - 130, Math.min(8, 2 + Math.round((e.value + e.tip) / 20)), e.value + e.tip);
         }
+        if (e.tip) sfx.tip();
         this.renderBundle();
         break;
       }
       case 'mismatch': {
         const v = [...this.people.values()].find((x) => x.slot === e.slot);
         if (v) {
-          this.tweens.add({ targets: v.c, x: v.c.x + 10, duration: 50, yoyo: true, repeat: 2 });
+          v.shakeAt = this.time.now;
           this.floatText(v.c.x, v.c.y - 250, t('mismatch'), C.red);
         }
+        sfx.wrong();
         break;
       }
-      case 'pick': { const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; break; }
-      case 'outOfStock': { const [x, y] = this.barPos(e.key); this.floatText(x, y - 70, t('outOfStock'), C.red); this.flash[e.key] = this.time.now; break; }
-      case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t('perfect'), C.green); break;
-      case 'under': this.floatText(this.nozzle[0] + 30, this.nozzle[1] - 190, t('underMore'), C.purple); break;
+      case 'pick': { const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; sfx.pick(); break; }
+      case 'outOfStock': { const [x, y] = this.barPos(e.key); this.floatText(x, y - 70, t('outOfStock'), C.red); this.flash[e.key] = this.time.now; sfx.wrong(); break; }
+      case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t('perfect'), C.green); this.squashAt = this.time.now; sfx.perfect(); break;
+      case 'under': this.floatText(this.nozzle[0] + 30, this.nozzle[1] - 190, t('underMore'), C.purple); this.squashAt = this.time.now; sfx.under(); break;
       case 'pop':
+        sfx.pop();
+        this.cameras.main.shake(140, 0.006);
         this.burst(this.nozzle[0], this.nozzle[1] - 90, ITEM(e.key).color);
         this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, `${t('pop')} −${e.loss} ₴`, C.red);
         this.flash[e.key] = this.time.now;
         break;
       case 'tie': {
+        sfx.tie();
         this.renderBundle();
         const item = this.bundleView.list[this.bundleView.list.length - 1];
         if (item) {
@@ -277,9 +306,10 @@ export class GameScene extends Phaser.Scene {
         }
         break;
       }
-      case 'discard': this.renderBundle(); break;
-      case 'bundleFull': this.floatText(W / 2, 1000, t('bundleFull'), C.red); break;
-      case 'noHelium': this.floatText(130, 150, t('refill', { s: Math.ceil(s.refillLeft) }), C.red); break;
+      case 'discard': this.renderBundle(); sfx.discard(); break;
+      case 'bundleFull': this.floatText(W / 2, 1000, t('bundleFull'), C.red); sfx.wrong(); break;
+      case 'noHelium': this.floatText(130, 150, t('refill', { s: Math.ceil(s.refillLeft) }), C.red); sfx.noHelium(); break;
+      case 'refilled': sfx.refilled(); break;
       case 'end': {
         // кульки на соплі й у зв'язці повертаються на склад
         const back = { ...s.stock };
@@ -289,7 +319,7 @@ export class GameScene extends Phaser.Scene {
         const run = endDay(this.run, sum, back);
         this.registry.set('run', run);
         saveRun(run);
-        this.scene.start('summary', { day: this.run.day, sum });
+        this.showShiftOver(() => this.scene.start('summary', { day: this.run.day, sum }));
         break;
       }
     }
@@ -316,7 +346,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  renderDynamic() {
+  renderDynamic(dt = 0) {
     const s = this.shift;
     const g = this.dyn.clear();
     const ui = this.ui.clear();
@@ -325,8 +355,18 @@ export class GameScene extends Phaser.Scene {
     const left = Math.ceil(s.timeLeft);
     this.timerText.setText(`${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`);
     this.timerText.setColor(left <= 10 ? '#ffe066' : '#ffffff');
-    const live = this.run.money + s.stats.revenue + s.stats.tips - heliumCost(CONFIG, s.stats.heliumUsed);
-    this.moneyText.setText(`${live} ₴`);
+    if (left !== this.lastSec) {
+      // останні 10 секунд — таймер пульсує й цокає
+      if (this.lastSec != null && left <= 10 && left > 0) {
+        sfx.tick();
+        this.tweens.add({ targets: this.timerText, scale: { from: 1.3, to: 1 }, duration: 300, ease: 'Back.easeOut' });
+      }
+      this.lastSec = left;
+    }
+    const live = this.run.money + s.stats.revenue + s.stats.tips - heliumCost(CONFIG, s.stats.heliumUsed) - this.heldCash;
+    this.shownMoney += (live - this.shownMoney) * Math.min(1, dt * 6);
+    if (Math.abs(live - this.shownMoney) < 0.5) this.shownMoney = live;
+    this.moneyText.setText(`${Math.round(this.shownMoney)} ₴`);
     this.heliumText.setText(s.refillLeft > 0 ? t('refill', { s: Math.ceil(s.refillLeft) }) : `${s.helium} / ${s.p.tank}`);
     this.heliumText.setColor(s.refillLeft > 0 ? '#ff4d5e' : '#3a2340');
     // рейтинг: частка обслужених клієнтів, 5 зірок
@@ -348,6 +388,7 @@ export class GameScene extends Phaser.Scene {
       const start = c.noStock ? c.leaveAt - pat : c.seatedAt;
       const f = Math.max(0, 1 - (s.t - start) / pat);
       const col = f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red;
+      v.bubble.angle = f < 0.25 && !c.noStock ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
       if (s.bundle.length && !c.noStock && bundleCovers(c.order, s.bundle)) {
@@ -366,11 +407,21 @@ export class GameScene extends Phaser.Scene {
       const k = this.pickAnim.t;
       drawItem(g, ITEM(this.pickAnim.key), this.pickAnim.x + (nx - this.pickAnim.x) * k, this.pickAnim.y + (ny - 30 - this.pickAnim.y) * k, 20);
       hint = '';
-    } else if (nz) {
+    }
+    this.nzG.clear().setVisible(!!nz && !this.pickAnim);
+    if (nz && !this.pickAnim) {
       const r = 14 + nz.fill * 62;
-      const sad = nz.state === 'ready' && nz.quality === 'under';
       if (nz.state === 'inflating') g.fillStyle(C.white, 0.22).fillCircle(nx, ny - 22 - r, r + 22);
-      drawItem(g, ITEM(nz.key), nx + (sad ? 8 : 0), ny - 22 - r + (sad ? 8 : 0), r, sad ? 0.75 : 1);
+      // пружинка: під час надування дрібно тремтить, після відпускання — сплющується й відскакує
+      let sx = 1, sy = 1;
+      const k = (this.time.now - this.squashAt) / 500;
+      if (nz.state === 'inflating') { const w = Math.sin(this.time.now / 35) * 0.035; sx += w; sy -= w; }
+      else if (k < 1) { const w = Math.sin(k * Math.PI * 3) * 0.2 * (1 - k); sx += w; sy -= w; }
+      else if (nz.state === 'ready') { const w = Math.sin(this.time.now / 260) * 0.02; sx -= w; sy += w; }
+      drawItem(this.nzG, ITEM(nz.key), 0, -r, r);
+      this.nzG.setPosition(nx, ny - 22).setScale(sx, sy);
+    }
+    if (!this.pickAnim && nz) {
       hint = nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
     }
     if (readyFor && !nz) hint = t('giveHint');
@@ -427,11 +478,72 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: tx, y: y - 60, alpha: 0, duration: 1000, onComplete: () => tx.destroy() });
   }
 
+  // Лопнула: клапті гуми розлітаються й падають, білий спалах-кільце
   burst(x, y, color) {
-    for (let i = 0; i < 10; i++) {
-      const a = (i / 10) * Math.PI * 2;
-      const p = this.add.circle(x, y, 9, color).setDepth(6);
-      this.tweens.add({ targets: p, x: x + Math.cos(a) * 110, y: y + Math.sin(a) * 110, alpha: 0, scale: 0.3, duration: 450, onComplete: () => p.destroy() });
+    const ring = this.add.circle(x, y, 30).setStrokeStyle(8, 0xffffff, 0.9).setDepth(6);
+    this.tweens.add({ targets: ring, scale: 3, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2 + Math.random() * 0.4, d = 70 + Math.random() * 70;
+      const p = this.add.triangle(x, y, 0, 0, 16 + Math.random() * 10, 4, 6, 14, color).setDepth(6);
+      const vx = Math.cos(a) * d, vy = Math.sin(a) * d - 40, spin = (Math.random() - 0.5) * 900;
+      this.tweens.addCounter({
+        from: 0, to: 1, duration: 650,
+        onUpdate: (tw) => { const k = tw.getValue(); p.setPosition(x + vx * k, y + vy * k + 220 * k * k).setAngle(spin * k).setAlpha(1 - k * k); },
+        onComplete: () => p.destroy(),
+      });
     }
+  }
+
+  // Монетки летять від клієнта в касу
+  flyCoins(x, y, n, cash) {
+    this.heldCash += cash;
+    for (let i = 0; i < n; i++) {
+      const part = i < n - 1 ? Math.floor(cash / n) : cash - Math.floor(cash / n) * (n - 1);
+      const g = this.add.graphics().setDepth(120);
+      coinIcon(g, 0, 0, 13);
+      g.setPosition(x + (Math.random() - 0.5) * 50, y + (Math.random() - 0.5) * 30).setScale(0);
+      const x0 = g.x, y0 = g.y, cx = (x0 + MONEY_ICON.x) / 2 + 80, cy = Math.min(y0, MONEY_ICON.y) - 120;
+      this.tweens.add({ targets: g, scale: 1, duration: 120, delay: i * 70 });
+      this.tweens.addCounter({
+        from: 0, to: 1, duration: 520, delay: 120 + i * 70, ease: 'Sine.easeIn',
+        onUpdate: (tw) => {
+          const k = tw.getValue(), m = 1 - k;   // крива Безьє через точку над сценою
+          g.setPosition(m * m * x0 + 2 * m * k * cx + k * k * MONEY_ICON.x, m * m * y0 + 2 * m * k * cy + k * k * MONEY_ICON.y);
+        },
+        onComplete: () => {
+          g.destroy();
+          this.heldCash -= part;       // каса підростає з кожною монеткою
+          sfx.coin();
+          this.tweens.killTweensOf(this.moneyText);
+          this.moneyText.setScale(1);
+          this.tweens.add({ targets: this.moneyText, scale: 1.18, duration: 70, yoyo: true });
+        },
+      });
+    }
+  }
+
+  // Сердечко над задоволеним клієнтом
+  heartPop(x, y) {
+    const g = this.add.graphics().setDepth(59);
+    drawItem(g, { kind: 'heart', color: 0xff3b6b }, 0, 0, 20);
+    g.setPosition(x, y).setScale(0);
+    this.tweens.add({ targets: g, scale: 1, duration: 200, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: g, y: y - 70, alpha: 0, duration: 900, delay: 200, onComplete: () => g.destroy() });
+  }
+
+  // Кінець зміни: плашка «Зміну завершено!», потім підсумок
+  showShiftOver(next) {
+    if (this.ending) return;
+    this.ending = true;
+    sfx.inflateStop();
+    sfx.shiftOver();
+    const dim = this.add.rectangle(W / 2, 640, W, 1280, 0x2a1238, 0).setDepth(300).setInteractive();
+    this.tweens.add({ targets: dim, fillAlpha: 0.45, duration: 300 });
+    const tx = this.add.text(0, 0, t('shiftOver'), txt(46, C.white)).setOrigin(0.5);
+    const w = tx.width + 90, bg = this.add.graphics();
+    bg.fillStyle(shadeDark, 1).fillRoundedRect(-w / 2, -48, w, 104, 52).fillStyle(C.magenta, 1).fillRoundedRect(-w / 2, -52, w, 104, 52);
+    const box = this.add.container(W / 2, 600, [bg, tx]).setDepth(301).setScale(0);
+    this.tweens.add({ targets: box, scale: 1, duration: 420, ease: 'Back.easeOut' });
+    this.time.delayedCall(1500, next);
   }
 }
