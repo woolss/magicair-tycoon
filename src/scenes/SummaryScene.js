@@ -29,11 +29,10 @@ export class SummaryScene extends Phaser.Scene {
     const rows = [
       [t('revenue'), `+${s.revenue}`, C.ink],
       [t('tips'), `+${s.tips}`, C.ink],
-      [t('balloons'), `−${s.balloons}`, C.greyDark],
       [t('heliumCost'), `−${s.helium}`, C.greyDark],
       [t('rent'), `−${s.rent}`, C.greyDark],
     ];
-    let y = 360;
+    let y = 370;
     for (const [label, val, col] of rows) {
       this.add.text(100, y, label, txt(34, col, { fontStyle: '700' })).setOrigin(0, 0.5);
       this.add.text(W - 100, y, `${val} ₴`, txt(34, col)).setOrigin(1, 0.5);
@@ -49,10 +48,9 @@ export class SummaryScene extends Phaser.Scene {
     this.add.text(W - 100, y, `${s.moneyAfter} ₴`, txt(40, C.magenta)).setOrigin(1, 0.5);
     y += 90;
     this.add.text(W / 2, y, t('served', { a: s.served, b: s.lost, c: s.popped }), txt(26, C.greyDark, { fontStyle: '700' })).setOrigin(0.5);
+    if (s.poppedValue) this.add.text(W / 2, y + 44, t('poppedValue', { v: s.poppedValue }), txt(26, C.red, { fontStyle: '700' })).setOrigin(0.5);
 
-    const next = button(this, W / 2, 1120, 480, 110, t('nextDay'), () => {
-      this.scene.start('game', { day: this.registry.get('day'), money: this.registry.get('money') });
-    });
+    const next = button(this, W / 2, 1120, 520, 110, t('toShop'), () => this.scene.start('shop'));
     // гравець міг ще тапати по полиці в кінці зміни — не пропускаємо підсумок випадково
     next.disableInteractive().setAlpha(0.5);
     this.time.delayedCall(900, () => next.setInteractive({ useHandCursor: true }).setAlpha(1));

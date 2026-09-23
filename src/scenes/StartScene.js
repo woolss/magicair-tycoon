@@ -1,6 +1,7 @@
-import { W, H, C, txt, drawBalloon } from '../theme.js';
+import { W, C, txt, drawBalloon } from '../theme.js';
 import { t, toggleLang } from '../i18n.js';
 import { CONFIG } from '../config.js';
+import { newRun, loadRun, saveRun } from '../run.js';
 
 export class StartScene extends Phaser.Scene {
   constructor() { super('start'); }
@@ -8,19 +9,28 @@ export class StartScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor(C.bg);
     const g = this.add.graphics();
-    drawBalloon(g, 200, 330, 60, CONFIG.colors.pink);
-    drawBalloon(g, 360, 280, 70, C.magenta);
-    drawBalloon(g, 520, 330, 60, CONFIG.colors.blue);
+    drawBalloon(g, 200, 300, 60, CONFIG.items.pink.color);
+    drawBalloon(g, 360, 250, 70, C.magenta);
+    drawBalloon(g, 520, 300, 60, CONFIG.items.blue.color);
 
-    this.add.text(W / 2, 470, t('title'), txt(64, C.magenta)).setOrigin(0.5);
-    this.add.text(W / 2, 540, t('subtitle'), txt(32, C.purple)).setOrigin(0.5);
+    this.add.text(W / 2, 440, t('title'), txt(64, C.magenta)).setOrigin(0.5);
+    this.add.text(W / 2, 510, t('subtitle'), txt(32, C.purple)).setOrigin(0.5);
     this.add.text(W / 2, 720, t('howto'), txt(28, C.ink, { fontStyle: '600', align: 'left', wordWrap: { width: 600 }, lineSpacing: 10 })).setOrigin(0.5);
 
-    button(this, W / 2, 960, 460, 110, t('play'), () => {
-      const day = this.registry.get('day') ?? 1;
-      const money = this.registry.get('money') ?? CONFIG.startMoney;
-      this.scene.start('game', { day, money });
-    });
+    const saved = loadRun();
+    const start = (run) => { this.registry.set('run', run); saveRun(run); this.scene.start('game'); };
+
+    if (saved) {
+      button(this, W / 2, 1000, 520, 110, t('cont', { n: saved.day }), () => start(saved));
+      // нова гра стирає прогрес — питаємо вдруге прямо на кнопці
+      let sure = false;
+      const again = button(this, W / 2, 1140, 420, 84, t('newGame'), () => {
+        if (!sure) { sure = true; again.list[1].setText(t('newGameSure')); return; }
+        start(newRun(CONFIG));
+      }, C.greyDark, 32);
+    } else {
+      button(this, W / 2, 1000, 460, 110, t('play'), () => start(newRun(CONFIG)));
+    }
 
     button(this, W - 90, 60, 130, 64, t('lang'), () => { toggleLang(); this.scene.restart(); }, C.purple, 26);
   }
