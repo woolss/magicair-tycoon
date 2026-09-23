@@ -62,6 +62,13 @@ export function bundleMatches(order, bundle) {
   return true;
 }
 
+// Чи є в зв'язці все, що потрібно клієнту (зайві кульки лишаються на прилавку)
+export function bundleCovers(order, bundle) {
+  const have = {};
+  for (const b of bundle) have[b.key] = (have[b.key] || 0) + 1;
+  return Object.entries(order).every(([k, n]) => (have[k] || 0) >= n);
+}
+
 export function gradeFill(p, fill) {
   if (fill > p.greenMax) return 'popped';
   if (fill >= p.greenMin) return 'perfect';
@@ -87,10 +94,11 @@ export function starsFor(cfg, served, lost) {
 export function summarize(cfg, st, moneyBefore) {
   const helium = heliumCost(cfg, st.heliumUsed);
   const rent = cfg.rent;
-  const profit = st.revenue + st.tips - helium - rent;
+  const salary = cfg.salary || 0;
+  const profit = st.revenue + st.tips - helium - rent - salary;
   const moneyAfter = Math.max(0, moneyBefore + profit); // каса не нижче 0
   return {
-    revenue: st.revenue, tips: st.tips, helium, rent, profit,
+    revenue: st.revenue, tips: st.tips, helium, rent, salary, profit,
     moneyBefore, moneyAfter,
     served: st.served, lost: st.lost, popped: st.popped, poppedValue: st.poppedValue,
     stars: starsFor(cfg, st.served, st.lost),
@@ -135,6 +143,7 @@ export class Shift {
 
   seat(slot, cust) {
     cust.slot = slot;
+    cust.seatedAt = this.t; // терпіння біля прилавка рахуємо з цього моменту
     if (!this.canFulfil(cust.order)) {
       cust.noStock = true;
       cust.leaveAt = this.t + this.cfg.customers.noStockLeaveSec;
@@ -161,7 +170,7 @@ export class Shift {
     for (let i = 0; i < this.customers.length; i++) {
       const cust = this.customers[i];
       if (!cust) continue;
-      const gone = cust.noStock ? this.t >= cust.leaveAt : this.t - cust.arrivedAt >= c.customers.patienceSec;
+      const gone = cust.noStock ? this.t >= cust.leaveAt : this.t - cust.seatedAt >= c.customers.patienceSec;
       if (gone) {
         this.customers[i] = null;
         this.stats.lost++;
@@ -169,7 +178,7 @@ export class Shift {
       }
     }
     const before = this.queue.length;
-    this.queue = this.queue.filter((q) => this.t - q.arrivedAt < c.customers.patienceSec);
+    this.queue = this.queue.filter((q) => this.t - q.arrivedAt < c.customers.queuePatienceSec);
     if (this.queue.length !== before) { this.stats.lost += before - this.queue.length; this.emit('queue'); }
 
     // Черга заходить на вільні місця
@@ -214,15 +223,19 @@ export class Shift {
   startInflate() {
     const nz = this.nozzle;
     if (this.over || !nz || nz.state !== 'empty') return false;
-    const he = this.cfg.items[nz.key].helium;
-    if (this.helium < he) {
-      if (this.refillLeft <= 0) this.startRefill();
-      this.emit('noHelium');
-      return false;
+    // гелій списуємо один раз на кульку; додування — без нового списання
+    if (!nz.paid) {
+      const he = this.cfg.items[nz.key].helium;
+      if (this.helium < he) {
+        if (this.refillLeft <= 0) this.startRefill();
+        this.emit('noHelium');
+        return false;
+      }
+      this.helium -= he;
+      this.stats.heliumUsed += he;
+      nz.paid = true;
+      if (this.helium <= 0 && this.refillLeft <= 0) this.startRefill();
     }
-    this.helium -= he;
-    this.stats.heliumUsed += he;
-    if (this.helium <= 0 && this.refillLeft <= 0) this.startRefill();
     nz.state = 'inflating';
     return true;
   }
@@ -243,6 +256,10 @@ export class Shift {
       const loss = this.cfg.items[nz.key].buy + heliumCost(this.cfg, this.cfg.items[nz.key].helium);
       this.stats.poppedValue += loss;
       this.emit('pop', { key: nz.key, loss });
+    } else if (q === 'under') {
+      // недодута — не зав'язуємо, лишається на соплі: тримай ще раз, щоб додути
+      nz.state = 'empty';
+      this.emit('under', { fill: nz.fill });
     } else {
       nz.state = 'ready';
       nz.quality = q;
@@ -262,6 +279,14 @@ export class Shift {
     return true;
   }
 
+  // Кнопка «скинути» — прибрати всю зв'язку з прилавка
+  discardAll() {
+    if (!this.bundle.length) return false;
+    this.bundle = [];
+    this.emit('discard', { index: -1 });
+    return true;
+  }
+
   // Тап по кульці у зв'язці — викинути
   discard(i) {
     if (i < 0 || i >= this.bundle.length) return false;
@@ -274,17 +299,22 @@ export class Shift {
   give(slot) {
     const cust = this.customers[slot];
     if (this.over || !cust || !this.bundle.length) return null;
-    if (!bundleMatches(cust.order, this.bundle)) {
+    if (!bundleCovers(cust.order, this.bundle)) {
       this.emit('mismatch', { slot });
       return null;
     }
-    const value = this.bundle.reduce((s, b) => s + balloonPrice(this.cfg, b), 0);
-    const fast = this.t - cust.arrivedAt <= this.cfg.customers.tipIfWithinSec;
+    // клієнт забирає тільки своє, зайві кульки лишаються на прилавку
+    const need = { ...cust.order }, taken = [], rest = [];
+    for (const b of this.bundle) {
+      if (need[b.key] > 0) { need[b.key]--; taken.push(b); } else rest.push(b);
+    }
+    const value = taken.reduce((s, b) => s + balloonPrice(this.cfg, b), 0);
+    const fast = this.t - cust.seatedAt <= this.cfg.customers.tipIfWithinSec;
     const tip = fast ? Math.round(value * this.cfg.customers.tipMul) : 0;
     this.stats.revenue += value;
     this.stats.tips += tip;
     this.stats.served++;
-    this.bundle = [];
+    this.bundle = rest;
     this.customers[slot] = null;
     this.emit('sale', { slot, id: cust.id, order: cust.order, value, tip });
     return { value, tip };
