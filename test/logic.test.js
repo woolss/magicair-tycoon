@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
-import { Shift, makeRng, bundleMatches, gradeFill, summarize, heliumCost, starsFor, deriveParams, makeOrder } from '../src/logic.js';
+import { Shift, makeRng, bundleMatches, bundleCovers, gradeFill, summarize, heliumCost, starsFor, deriveParams, makeOrder } from '../src/logic.js';
 import { newRun, buyStock, buyUpgrade, upgradeState, endDay, loadRun, saveRun, clearRun } from '../src/run.js';
 
 const cfg = CONFIG;
@@ -68,22 +68,16 @@ test('зв\'язка має збігтися з замовленням точн�
   assert.ok(!bundleMatches({ pink: 1 }, [{ key: 'pink' }, { key: 'blue' }]));
 });
 
-test('продаж: ціна, недодув дешевше, чайові за швидкість', () => {
+test('продаж: ціна, чайові за швидкість', () => {
   const s = shift(3);
   s.update(cfg.customers.firstAtSec);
   const cust = s.customers[0];
   assert.ok(cust);
-  let under = true;
   for (const [key, n] of Object.entries(cust.order)) {
-    for (let i = 0; i < n; i++) {
-      s.pick(key);
-      inflateTo(s, under ? 0.4 : 0.7); // перша недодута
-      under = false;
-      s.tie();
-    }
+    for (let i = 0; i < n; i++) { s.pick(key); inflateTo(s, 0.7); s.tie(); }
   }
   const total = Object.values(cust.order).reduce((a, b) => a + b, 0);
-  const expected = (total - 1) * 15 + Math.round(15 * cfg.inflate.underSellMul);
+  const expected = total * 15;
   const r = s.give(0);
   assert.equal(r.value, expected);
   assert.equal(r.tip, Math.round(expected * cfg.customers.tipMul));
@@ -151,7 +145,7 @@ test('гелій: закінчився → 15 с чекаєш, потім пов
   assert.ok(s.startInflate());
   assert.equal(s.helium, 0);
   assert.equal(s.refillLeft, cfg.helium.refillSec);
-  s.update(0.5 * s.p.fullSec); s.release(); s.tie();
+  s.update(0.7 * s.p.fullSec); s.release(); s.tie();
   s.pick('pink');
   assert.equal(s.startInflate(), false);
   s.update(cfg.helium.refillSec);
@@ -164,11 +158,12 @@ test('підсумок: цілі числа, оренда, каса не ниж�
   assert.equal(heliumCost(cfg, 7), 8);
   const bad = summarize(cfg, { revenue: 0, tips: 0, served: 0, lost: 5, popped: 3, poppedValue: 18, heliumUsed: 3 }, 10);
   assert.equal(bad.rent, 40);
-  assert.equal(bad.profit, -44);
+  assert.equal(bad.salary, 50);
+  assert.equal(bad.profit, -94);
   assert.equal(bad.moneyAfter, 0);
   const ok = summarize(cfg, { revenue: 300, tips: 20, served: 10, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 20 }, 300);
-  assert.equal(ok.profit, 300 + 20 - 24 - 40);
-  assert.equal(ok.moneyAfter, 556);
+  assert.equal(ok.profit, 300 + 20 - 24 - 40 - 50);
+  assert.equal(ok.moneyAfter, 506);
   assert.equal(starsFor(cfg, 9, 1), 3);
   assert.equal(starsFor(cfg, 7, 3), 2);
   assert.equal(starsFor(cfg, 1, 3), 1);
@@ -214,4 +209,46 @@ test('зміна закінчується за таймером', () => {
   for (let i = 0; i < 1900; i++) s.update(0.1);
   assert.ok(s.over);
   assert.ok(s.drainEvents().some((e) => e.type === 'end'));
+});
+
+test('недодута кулька не зав\'язується — її можна додути без нового гелію', () => {
+  const s = shift(1);
+  s.pick('pink');
+  assert.equal(inflateTo(s, 0.4), 'under');
+  assert.equal(s.nozzle.state, 'empty');
+  assert.equal(s.tie(), false);
+  const he = s.helium;
+  assert.ok(s.startInflate());
+  assert.equal(s.helium, he);             // гелій не списався вдруге
+  s.update(0.25 * s.p.fullSec);
+  assert.equal(s.release(), 'perfect');
+  assert.ok(s.tie());
+  assert.equal(s.bundle[0].quality, 'perfect');
+});
+
+test('клієнт забирає своє, зайві кульки лишаються на прилавку', () => {
+  assert.ok(bundleCovers({ pink: 1 }, [{ key: 'pink' }, { key: 'blue' }]));
+  assert.ok(!bundleCovers({ pink: 2 }, [{ key: 'pink' }, { key: 'blue' }]));
+  const s = shift(3);
+  s.bundle = [{ key: 'blue', quality: 'perfect' }, { key: 'pink', quality: 'perfect' }, { key: 'pink', quality: 'perfect' }];
+  s.customers[0] = { id: 99, order: { pink: 1 }, arrivedAt: 0, seatedAt: 0, slot: 0 };
+  assert.equal(s.give(0).value, 15);
+  assert.deepEqual(s.bundle.map((b) => b.key), ['blue', 'pink']);
+  assert.ok(s.discardAll());
+  assert.equal(s.bundle.length, 0);
+});
+
+test('терпіння біля прилавка рахується з моменту, коли клієнт підійшов', () => {
+  const s = shift(5);
+  s.customers = s.customers.map((_, i) => ({ id: 100 + i, order: { pink: 1 }, arrivedAt: 0, seatedAt: 0, slot: i }));
+  s.nextArrival = 0.1;
+  s.update(0.2);                       // новий клієнт став у чергу
+  const q = s.queue[0];
+  s.update(20);                        // 20 с простояв у черзі
+  s.customers[0] = null;
+  s.update(0.01);                      // підійшов до прилавка
+  const c = s.customers.find((x) => x && x.id === q.id);
+  assert.ok(c);
+  s.update(cfg.customers.patienceSec - 1);
+  assert.ok(s.customers.some((x) => x && x.id === q.id)); // ще чекає — повне терпіння від підходу
 });

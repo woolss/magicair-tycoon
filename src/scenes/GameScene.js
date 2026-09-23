@@ -1,14 +1,23 @@
 import { W, C, txt, drawItem } from '../theme.js';
 import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
-import { Shift, makeRng, summarize, bundleMatches, heliumCost } from '../logic.js';
+import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, lookFor } from '../iso.js';
 
 const ITEM = (k) => CONFIG.items[k];
-const BTN = { x: 624, y: 1150, r: 76 };        // кнопка «Тримай / Зав'язати»
-const BAR = { y: 1172, x0: 70, step: 82 };     // нижня панель товарів
-const METER = { x: 664, top: 770, h: 220 };    // шкала надування — праворуч, над кнопкою
+const BTN = { x: 606, y: 1168, r: 84 };        // кнопка «Тримай / Зав'язати»
+const TRASH = { x: 458, y: 1168, r: 40 };      // кнопка «скинути зв'язку»
+const PANEL = { y: 1064, h: 208 };             // нижня панель
+const METER = { x: 664, top: 760, h: 210 };    // шкала надування — праворуч, над кнопкою
+const HINT_Y = 1010;                            // плашка-підказка над панеллю
+
+// Товари на панелі: до 3 — один ряд, більше — два ряди по 3 (великі, щоб легко влучати)
+function barSlots(n) {
+  return Array.from({ length: n }, (_, i) => n <= 3
+    ? { x: 84 + i * 112, y: 1168, r: 46 }
+    : { x: 84 + (i % 3) * 112, y: i < 3 ? 1118 : 1220, r: 44 });
+}
 const BUBBLE_Y = -168;                          // низ хмаринки над головою
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
@@ -91,19 +100,27 @@ export class GameScene extends Phaser.Scene {
 
     // підказка над панеллю
     this.hintBg = this.add.graphics().setDepth(100);
-    this.hintText = this.add.text(300, 1072, '', txt(22, C.white)).setOrigin(0.5).setDepth(101);
+    this.hintText = this.add.text(300, HINT_Y + 22, '', txt(22, C.white)).setOrigin(0.5).setDepth(101);
   }
 
   buildBar() {
     const g = this.add.graphics().setDepth(100);
-    g.fillStyle(0x3a1f45, 0.25).fillRoundedRect(14, 1110, 692, 160, 36);
-    g.fillStyle(C.white, 0.97).fillRoundedRect(14, 1106, 692, 160, 36);
+    g.fillStyle(0x3a1f45, 0.25).fillRoundedRect(10, PANEL.y + 4, 700, PANEL.h, 36);
+    g.fillStyle(C.white, 0.97).fillRoundedRect(10, PANEL.y, 700, PANEL.h, 36);
     this.barGfx = this.add.graphics().setDepth(101);
-    this.stockTexts = this.keys.map((_, i) => this.add.text(BAR.x0 + i * BAR.step + 22, BAR.y + 29, '', txt(16, C.white)).setOrigin(0.5).setDepth(103));
+    this.slots = barSlots(this.keys.length);
+    this.stockTexts = this.slots.map((sl) => this.add.text(sl.x + sl.r * 0.62, sl.y + sl.r * 0.72, '', txt(17, C.white)).setOrigin(0.5).setDepth(103));
     this.keys.forEach((key, i) => {
-      this.add.zone(BAR.x0 + i * BAR.step, BAR.y, 78, 90).setInteractive().setDepth(104)
+      const sl = this.slots[i];
+      this.add.zone(sl.x, sl.y, sl.r * 2 + 16, sl.r * 2 + 8).setInteractive().setDepth(104)
         .on('pointerdown', () => this.shift.pick(key));
     });
+    // скинути всю зв'язку з прилавка
+    this.trashGfx = this.add.graphics().setDepth(102);
+    this.trashText = this.add.text(TRASH.x, TRASH.y - 6, '✕', txt(30, C.white)).setOrigin(0.5).setDepth(103);
+    this.trashSub = this.add.text(TRASH.x, TRASH.y + TRASH.r + 14, t('trash'), txt(16, C.greyDark)).setOrigin(0.5).setDepth(103);
+    this.add.circle(TRASH.x, TRASH.y, TRASH.r + 6).setInteractive().setDepth(104)
+      .on('pointerdown', () => this.shift.discardAll());
     this.btnGfx = this.add.graphics().setDepth(102);
     this.btnText = this.add.text(BTN.x, BTN.y - 4, '', txt(30, C.white, { align: 'center' })).setOrigin(0.5).setDepth(103);
     this.btnSub = this.add.text(BTN.x, BTN.y + 28, '', txt(18, 0xffd6f4)).setOrigin(0.5).setDepth(103);
@@ -208,7 +225,7 @@ export class GameScene extends Phaser.Scene {
     this.renderDynamic();
   }
 
-  barPos(key) { const i = this.keys.indexOf(key); return [BAR.x0 + i * BAR.step, BAR.y]; }
+  barPos(key) { const sl = this.slots[this.keys.indexOf(key)]; return [sl.x, sl.y]; }
 
   onEvent(e) {
     const s = this.shift;
@@ -243,7 +260,8 @@ export class GameScene extends Phaser.Scene {
       }
       case 'pick': { const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; break; }
       case 'outOfStock': { const [x, y] = this.barPos(e.key); this.floatText(x, y - 70, t('outOfStock'), C.red); this.flash[e.key] = this.time.now; break; }
-      case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t(e.quality === 'perfect' ? 'perfect' : 'under'), e.quality === 'perfect' ? C.green : C.greyDark); break;
+      case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t('perfect'), C.green); break;
+      case 'under': this.floatText(this.nozzle[0] + 30, this.nozzle[1] - 190, t('underMore'), C.purple); break;
       case 'pop':
         this.burst(this.nozzle[0], this.nozzle[1] - 90, ITEM(e.key).color);
         this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, `${t('pop')} −${e.loss} ₴`, C.red);
@@ -327,12 +345,12 @@ export class GameScene extends Phaser.Scene {
       if (v.slot < 0 || !v.bubble.visible) { v.bar.clear(); continue; }
       const c = v.cust;
       const pat = c.noStock ? CONFIG.customers.noStockLeaveSec : CONFIG.customers.patienceSec;
-      const start = c.noStock ? c.leaveAt - pat : c.arrivedAt;
+      const start = c.noStock ? c.leaveAt - pat : c.seatedAt;
       const f = Math.max(0, 1 - (s.t - start) / pat);
       const col = f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red;
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
-      if (s.bundle.length && bundleMatches(c.order, s.bundle)) {
+      if (s.bundle.length && !c.noStock && bundleCovers(c.order, s.bundle)) {
         v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 24);
         readyFor = true;
       }
@@ -362,7 +380,7 @@ export class GameScene extends Phaser.Scene {
     this.hintBg.clear();
     if (hint) {
       const w = this.hintText.width + 40;
-      this.hintBg.fillStyle(hint === t('giveHint') ? C.green : C.purple, 1).fillRoundedRect(300 - w / 2, 1050, w, 44, 22);
+      this.hintBg.fillStyle(hint === t('giveHint') ? C.green : C.purple, 1).fillRoundedRect(300 - w / 2, HINT_Y, w, 44, 22);
     }
 
     // маркер шкали
@@ -372,21 +390,26 @@ export class GameScene extends Phaser.Scene {
     // нижня панель: товари із залишками
     const bg = this.barGfx.clear();
     this.keys.forEach((key, i) => {
-      const x = BAR.x0 + i * BAR.step, y = BAR.y, n = s.stock[key];
+      const { x, y, r: sr } = this.slots[i], n = s.stock[key];
       const flashing = this.time.now - (this.flash[key] || -1e9) < 500;
-      bg.fillStyle(flashing ? 0xffd6dc : n ? 0xfff4fa : 0xf1eaf3, 1).fillCircle(x, y, 34);
-      bg.lineStyle(3, n ? 0xfbc8e8 : 0xe3d8e8, 1).strokeCircle(x, y, 34);
-      drawItem(bg, ITEM(key), x, y - 2, 20, n ? 1 : 0.3);
-      const bw = n > 9 ? 34 : 26;
-      bg.fillStyle(n ? C.purple : C.red, 1).fillRoundedRect(x + 22 - bw / 2, y + 18, bw, 22, 11);
+      bg.fillStyle(flashing ? 0xffd6dc : n ? 0xfff4fa : 0xf1eaf3, 1).fillCircle(x, y, sr);
+      bg.lineStyle(3, n ? 0xfbc8e8 : 0xe3d8e8, 1).strokeCircle(x, y, sr);
+      drawItem(bg, ITEM(key), x, y - 3, sr * 0.6, n ? 1 : 0.3);
+      const bw = n > 9 ? 36 : 28, bx = x + sr * 0.62, by = y + sr * 0.72;
+      bg.fillStyle(n ? C.purple : C.red, 1).fillRoundedRect(bx - bw / 2, by - 12, bw, 24, 12);
       this.stockTexts[i].setText(String(n));
     });
+    // кнопка «скинути» — лише коли на прилавку є зв'язка
+    const hasBundle = s.bundle.length > 0;
+    this.trashGfx.clear();
+    if (hasBundle) this.trashGfx.fillStyle(C.white, 1).fillCircle(TRASH.x, TRASH.y, TRASH.r + 6).fillStyle(C.greyDark, 1).fillCircle(TRASH.x, TRASH.y, TRASH.r);
+    this.trashText.setVisible(hasBundle); this.trashSub.setVisible(hasBundle);
 
     // велика кнопка: сіра — обери кульку, маджента — тримай, зелена — зав'язати
     const pulse = 1 + 0.05 * Math.sin(this.time.now / 150);
     let col = C.grey, label = t('btnPick'), sub = '', r = BTN.r;
     if (nz && !this.pickAnim) {
-      if (nz.state === 'empty') { col = C.magenta; label = t('btnHold'); sub = t('btnHoldSub'); r *= pulse; }
+      if (nz.state === 'empty') { col = C.magenta; label = t('btnHold'); sub = t(nz.fill > 0 ? 'btnMoreSub' : 'btnHoldSub'); r *= pulse; }
       else if (nz.state === 'inflating') { col = C.purple; label = t('btnHold'); sub = t('btnHoldSub'); r *= 0.93; }
       else { col = C.green; label = t('btnTie'); r *= pulse; }
     }

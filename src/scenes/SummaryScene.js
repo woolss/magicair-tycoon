@@ -31,8 +31,9 @@ export class SummaryScene extends Phaser.Scene {
       [t('tips'), `+${s.tips}`, C.ink],
       [t('heliumCost'), `−${s.helium}`, C.greyDark],
       [t('rent'), `−${s.rent}`, C.greyDark],
+      [t('salary'), `−${s.salary}`, C.greyDark],
     ];
-    let y = 370;
+    let y = 350;
     for (const [label, val, col] of rows) {
       this.add.text(100, y, label, txt(34, col, { fontStyle: '700' })).setOrigin(0, 0.5);
       this.add.text(W - 100, y, `${val} ₴`, txt(34, col)).setOrigin(1, 0.5);
