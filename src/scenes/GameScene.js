@@ -172,20 +172,26 @@ export class GameScene extends Phaser.Scene {
     return v;
   }
 
+  // Хмаринка замовлення: сітка по 2 в ряд (ширина не росте з асортиментом), кількість — бейджем
   drawBubble(b, cust) {
     const entries = Object.entries(cust.order);
-    const w = 30 + entries.length * 44, h = 76;
+    const cols = Math.min(2, entries.length), rows = Math.ceil(entries.length / 2);
+    const CW = 46, CH = 46, w = 14 + cols * CW, h = 12 + rows * CH;
     const g = this.add.graphics();
-    g.fillStyle(0x3a1f45, 0.2).fillRoundedRect(-w / 2, -h + 4, w, h, 22);
-    g.fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h, w, h, 22).fillTriangle(-10, -1, 10, -1, 0, 14);
+    g.fillStyle(0x3a1f45, 0.2).fillRoundedRect(-w / 2, -h + 4, w, h, 20);
+    g.fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h, w, h, 20).fillTriangle(-10, -1, 10, -1, 0, 14);
     b.add(g);
     entries.forEach(([key, n], i) => {
-      const ix = -w / 2 + 37 + i * 44;
-      drawItem(g, ITEM(key), ix, -h + 30, 14);
-      b.add(this.add.text(ix, -h + 64, `×${n}`, txt(16, C.ink)).setOrigin(0.5));
+      const row = Math.floor(i / cols), inRow = Math.min(cols, entries.length - row * cols);
+      const ix = (i % cols - (inRow - 1) / 2) * CW, iy = -h + 6 + CH / 2 + row * CH;
+      drawItem(g, ITEM(key), ix - 2, iy - 2, 15);
+      if (n > 1) {
+        g.fillStyle(C.magenta, 1).fillCircle(ix + 14, iy + 12, 11);
+        b.add(this.add.text(ix + 14, iy + 12, String(n), txt(15, C.white)).setOrigin(0.5));
+      }
     });
     if (cust.noStock) {
-      g.lineStyle(7, C.red, 0.9).lineBetween(-w / 2 + 14, -h + 12, w / 2 - 14, -12).lineBetween(w / 2 - 14, -h + 12, -w / 2 + 14, -12);
+      g.lineStyle(7, C.red, 0.9).lineBetween(-w / 2 + 12, -h + 12, w / 2 - 12, -12).lineBetween(w / 2 - 12, -h + 12, -w / 2 + 12, -12);
     }
     b.w = w; b.h = h;
     b.setVisible(false);
