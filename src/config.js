@@ -57,7 +57,7 @@ export const CONFIG = {
   // Апгрейди ступенів 1–2 (порядок = порядок у списку)
   upgrades: [
     { id: 'pump2',    price: 120, req: null,    effect: { pump: 1 } },
-    { id: 'sign',     price: 250, req: null,    effect: { flow: 1.25 } },
+    { id: 'sign',     price: 450, req: null,    effect: { flow: 1.15 } },
     { id: 'confetti', price: 350, req: null,    effect: { unlock: 'confetti' } },
     { id: 'foil',     price: 600, req: null,    effect: { unlock: 'foil' } },
     { id: 'tank200',  price: 500, req: null,    effect: { tank: 200 } },
@@ -68,8 +68,8 @@ export const CONFIG = {
   // Онлайн-замовлення з доставкою (апгрейд «online»): одне за раз, більший набір, більше часу, кур'єр забирає коробку
   online: {
     firstAtSec: 20,      // перше замовлення після початку зміни
-    gapMinSec: 10,       // пауза після виконаного/пропущеного
-    gapMaxSec: 20,
+    gapMinSec: 20,       // пауза після виконаного/пропущеного
+    gapMaxSec: 30,
     retrySec: 8,         // не вистачає товару — спробувати пізніше
     timeSec: 75,         // скільки чекає замовлення
     lastAtSec: 40,       // ближче до кінця зміни нові не приходять
