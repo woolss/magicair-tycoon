@@ -107,6 +107,14 @@ export function upIcon(g, id, x, y, s = 30) {
     drawItem(g, CONFIG.items.star, x + s * 0.42, y - s * 0.12, s * 0.5);
     return;
   }
+  if (id === 'online') {
+    // телефон із кулькою на екрані
+    g.fillStyle(0x3b2250, 1).fillRoundedRect(x - s * 0.45, y - s * 0.8, s * 0.9, s * 1.6, s * 0.18);
+    g.fillStyle(0xfff4fa, 1).fillRoundedRect(x - s * 0.36, y - s * 0.64, s * 0.72, s * 1.2, s * 0.08);
+    drawBalloon(g, x, y - s * 0.12, s * 0.26, C.magenta);
+    g.fillStyle(C.green, 1).fillCircle(x + s * 0.45, y - s * 0.72, s * 0.2);
+    return;
+  }
   if (id === 'tank200') {
     g.fillStyle(0x3f73e0, 1).fillRoundedRect(x - s * 0.42, y - s * 0.6, s * 0.84, s * 1.4, s * 0.38);
     g.fillStyle(0x7fa8ff, 1).fillRoundedRect(x - s * 0.28, y - s * 0.45, s * 0.18, s * 1.05, s * 0.09);
