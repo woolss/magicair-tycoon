@@ -157,13 +157,13 @@ test('підсумок: цілі числа, оренда, каса не ниж�
   assert.equal(heliumCost(cfg, 100), 120);
   assert.equal(heliumCost(cfg, 7), 8);
   const bad = summarize(cfg, { revenue: 0, tips: 0, served: 0, lost: 5, popped: 3, poppedValue: 18, heliumUsed: 3 }, 10);
-  assert.equal(bad.rent, 40);
+  assert.equal(bad.rent, 90);
   assert.equal(bad.salary, 50);
-  assert.equal(bad.profit, -94);
+  assert.equal(bad.profit, -144);
   assert.equal(bad.moneyAfter, 0);
   const ok = summarize(cfg, { revenue: 300, tips: 20, served: 10, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 20 }, 300);
-  assert.equal(ok.profit, 300 + 20 - 24 - 40 - 50);
-  assert.equal(ok.moneyAfter, 506);
+  assert.equal(ok.profit, 300 + 20 - 24 - 90 - 50);
+  assert.equal(ok.moneyAfter, 456);
   assert.equal(starsFor(cfg, 9, 1), 3);
   assert.equal(starsFor(cfg, 7, 3), 2);
   assert.equal(starsFor(cfg, 1, 3), 1);
@@ -251,4 +251,49 @@ test('терпіння біля прилавка рахується з моме�
   assert.ok(c);
   s.update(cfg.customers.patienceSec - 1);
   assert.ok(s.customers.some((x) => x && x.id === q.id)); // ще чекає — повне терпіння від підходу
+});
+
+test('онлайн-замовлення: лише з апгрейдом, одне за раз', () => {
+  const none = shift(2, { owned: ['foil'] });
+  none.update(cfg.online.firstAtSec + 1);
+  assert.equal(none.online, null);
+  const s = shift(2, { owned: ['foil', 'online'] });
+  s.update(cfg.online.firstAtSec + 0.1);
+  assert.ok(s.online);
+  const id = s.online.id;
+  const n = Object.values(s.online.order).reduce((a, b) => a + b, 0);
+  assert.ok(n >= cfg.online.latexMin + cfg.online.foilMin);
+  assert.ok(Object.keys(s.online.order).some((k) => k === 'heart' || k === 'star'));
+  s.update(10);
+  assert.equal(s.online.id, id);            // друге не з'являється, поки є перше
+});
+
+test('онлайн: упакував — оплата + доставка, зайві кульки лишаються', () => {
+  const s = shift(2, { owned: ['foil', 'online'] });
+  s.update(cfg.online.firstAtSec + 0.1);
+  s.online.order = { pink: 2, heart: 1 };
+  s.bundle = [{ key: 'pink', quality: 'perfect' }, { key: 'blue', quality: 'perfect' }];
+  assert.equal(s.pack(), null);             // не вистачає — не пакується
+  assert.ok(s.drainEvents().some((e) => e.type === 'onlineMismatch'));
+  s.bundle.push({ key: 'pink', quality: 'perfect' }, { key: 'heart', quality: 'perfect' });
+  const r = s.pack();
+  assert.equal(r.value, 15 + 15 + 55 + cfg.online.fee);
+  assert.equal(r.tip, Math.round(85 * cfg.customers.tipMul));
+  assert.deepEqual(s.bundle.map((b) => b.key), ['blue']);
+  assert.equal(s.online, null);
+  assert.equal(s.stats.onlineDone, 1);
+  assert.equal(s.stats.served, 1);
+});
+
+test('онлайн: не встиг — замовлення скасовується, рейтинг падає', () => {
+  const s = shift(2, { owned: ['foil', 'online'] });
+  s.customers = s.customers.map(() => null);
+  s.nextArrival = Infinity;                 // без живих клієнтів
+  s.update(cfg.online.firstAtSec + 0.1);
+  assert.ok(s.online);
+  s.update(cfg.online.timeSec);
+  assert.equal(s.online, null);
+  assert.equal(s.stats.onlineMissed, 1);
+  assert.equal(s.stats.lost, 1);
+  assert.equal(s.stats.revenue, 0);
 });

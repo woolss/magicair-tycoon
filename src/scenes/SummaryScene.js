@@ -88,7 +88,10 @@ export class SummaryScene extends Phaser.Scene {
     const sy = top + rows.length * rowH + 250;
     const chip = this.add.text(W / 2, sy, t('served', { a: s.served, b: s.lost, c: s.popped }), txt(24, C.purple, { fontStyle: '700', backgroundColor: '#ffffffcc', padding: { x: 20, y: 10 } })).setOrigin(0.5).setAlpha(0);
     const extra = [chip];
-    if (s.poppedValue) extra.push(this.add.text(W / 2, sy + 58, t('poppedValue', { v: s.poppedValue }), txt(24, C.red, { fontStyle: '700' })).setOrigin(0.5).setAlpha(0));
+    let ey = sy + 58;
+    const dTotal = (s.onlineDone || 0) + (s.onlineMissed || 0);
+    if (dTotal) { extra.push(this.add.text(W / 2, ey, t('deliveries', { a: s.onlineDone, b: dTotal }), txt(24, C.purple, { fontStyle: '700' })).setOrigin(0.5).setAlpha(0)); ey += 46; }
+    if (s.poppedValue) extra.push(this.add.text(W / 2, ey, t('poppedValue', { v: s.poppedValue }), txt(24, C.red, { fontStyle: '700' })).setOrigin(0.5).setAlpha(0));
     this.tweens.add({ targets: extra, alpha: 1, duration: 300, delay: tMoney + 400 });
 
     const next = button(this, W / 2, 1150, 520, 110, t('toShop'), () => this.scene.start('shop'));
