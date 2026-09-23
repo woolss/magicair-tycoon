@@ -1,0 +1,76 @@
+// Усі написи гри. Українська — основна, російська — на вибір.
+const T = {
+  uk: {
+    title: 'MagicAir Tycoon',
+    subtitle: 'Магазин гелієвих кульок',
+    play: 'Почати зміну',
+    day: 'День {n}',
+    howto: '1. Тапни кульку на полиці\n2. Тримай рожеву кнопку — кулька надувається\n3. Відпусти в зеленій зоні\n4. «Зав\'язати» — кулька йде на прилавок\n5. Зібрав замовлення — тапни клієнта',
+    hold: 'Тримай кнопку ↘',
+    btnPick: 'Обери\nкульку',
+    btnHold: 'Тримай',
+    btnTie: 'Зав\'язати',
+    giveHint: 'Тапни клієнта — віддати',
+    tapToTie: 'Тапни — зав\'язати',
+    pickBalloon: 'Обери кульку на полиці ↓',
+    perfect: 'Ідеально!',
+    under: 'Недодув…',
+    pop: 'Бах!',
+    mismatch: 'Не те!',
+    bundleFull: 'Зв\'язка повна',
+    refill: 'Новий балон: {s} с',
+    helium: 'Гелій',
+    summaryTitle: 'Підсумок дня {n}',
+    revenue: 'Виручка',
+    tips: 'Чайові',
+    balloons: 'Кульки',
+    heliumCost: 'Гелій',
+    rent: 'Оренда',
+    profit: 'Прибуток',
+    money: 'У касі',
+    served: 'Обслужено: {a}   Пішли: {b}   Лопнуло: {c}',
+    nextDay: 'Наступний день',
+    lang: 'УКР',
+  },
+  ru: {
+    title: 'MagicAir Tycoon',
+    subtitle: 'Магазин гелиевых шаров',
+    play: 'Начать смену',
+    day: 'День {n}',
+    howto: '1. Тапни шар на полке\n2. Держи розовую кнопку — шар надувается\n3. Отпусти в зелёной зоне\n4. «Завязать» — шар идёт на прилавок\n5. Собрал заказ — тапни клиента',
+    hold: 'Держи кнопку ↘',
+    btnPick: 'Выбери\nшар',
+    btnHold: 'Держи',
+    btnTie: 'Завязать',
+    giveHint: 'Тапни клиента — отдать',
+    tapToTie: 'Тапни — завязать',
+    pickBalloon: 'Выбери шар на полке ↓',
+    perfect: 'Идеально!',
+    under: 'Недодул…',
+    pop: 'Бах!',
+    mismatch: 'Не то!',
+    bundleFull: 'Связка полная',
+    refill: 'Новый баллон: {s} с',
+    helium: 'Гелий',
+    summaryTitle: 'Итог дня {n}',
+    revenue: 'Выручка',
+    tips: 'Чаевые',
+    balloons: 'Шары',
+    heliumCost: 'Гелий',
+    rent: 'Аренда',
+    profit: 'Прибыль',
+    money: 'В кассе',
+    served: 'Обслужено: {a}   Ушли: {b}   Лопнуло: {c}',
+    nextDay: 'Следующий день',
+    lang: 'РУС',
+  },
+};
+
+let lang = 'uk';
+export const setLang = (l) => { lang = T[l] ? l : 'uk'; };
+export const getLang = () => lang;
+export const toggleLang = () => setLang(lang === 'uk' ? 'ru' : 'uk');
+export function t(key, vars = {}) {
+  const s = T[lang][key] ?? key;
+  return s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+}
