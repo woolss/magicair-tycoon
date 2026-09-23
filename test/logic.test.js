@@ -51,7 +51,7 @@ test('апгрейди: вивіска — частіше клієнти, бал
   const p0 = deriveParams(cfg, []);
   assert.deepEqual(p0.open, ['pink', 'blue', 'yellow']);
   const p = deriveParams(cfg, ALL);
-  assert.equal(p.gapSec, cfg.customers.baseGapSec / 1.25);
+  assert.equal(p.gapSec, cfg.customers.baseGapSec / 1.15);
   assert.equal(p.tank, 200);
   assert.deepEqual(p.open, ['pink', 'blue', 'yellow', 'confetti', 'heart', 'star']);
   // замовлення з закритим асортиментом — лише латекс
