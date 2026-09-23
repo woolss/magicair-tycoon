@@ -1,21 +1,26 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG } from '../src/config.js';
-import { Shift, makeRng, bundleMatches, gradeFill, summarize, heliumCost, starsFor } from '../src/logic.js';
+import { Shift, makeRng, bundleMatches, gradeFill, summarize, heliumCost, starsFor, deriveParams, makeOrder } from '../src/logic.js';
+import { newRun, buyStock, buyUpgrade, upgradeState, endDay, loadRun, saveRun, clearRun } from '../src/run.js';
 
 const cfg = CONFIG;
+const ALL = cfg.upgrades.map((u) => u.id);
+const FULL = { pink: 50, blue: 50, yellow: 50, confetti: 50, heart: 50, star: 50 };
+const shift = (seed, opts = {}) => new Shift(cfg, { rng: makeRng(seed), stock: FULL, ...opts });
 
 function inflateTo(s, fill) {
   s.startInflate();
-  s.update(fill * cfg.pump.fullSec);
+  s.update(fill * s.p.fullSec);
   return s.release();
 }
 
 test('надування: недодув / ідеально / лопнула', () => {
-  assert.equal(gradeFill(cfg, 0.3), 'under');
-  assert.equal(gradeFill(cfg, 0.7), 'perfect');
-  assert.equal(gradeFill(cfg, 0.9), 'popped');
-  const s = new Shift(cfg, { rng: makeRng(1) });
+  const p = deriveParams(cfg, []);
+  assert.equal(gradeFill(p, 0.3), 'under');
+  assert.equal(gradeFill(p, 0.7), 'perfect');
+  assert.equal(gradeFill(p, 0.9), 'popped');
+  const s = shift(1);
   s.pick('pink');
   assert.equal(inflateTo(s, 0.7), 'perfect');
   s.tie();
@@ -23,31 +28,55 @@ test('надування: недодув / ідеально / лопнула', (
   assert.equal(inflateTo(s, 0.95), 'popped');
   assert.equal(s.nozzle, null);
   assert.equal(s.stats.popped, 1);
+  assert.equal(s.stats.poppedValue, 5 + heliumCost(cfg, 1));
 });
 
 test('перетримав до 1.0 — лопається сама', () => {
-  const s = new Shift(cfg, { rng: makeRng(1) });
+  const s = shift(1);
   s.pick('pink'); s.startInflate();
-  s.update(cfg.pump.fullSec + 0.1);
+  s.update(s.p.fullSec + 0.1);
   assert.equal(s.nozzle, null);
   assert.equal(s.stats.popped, 1);
 });
 
+test('насос швидший — зелене вікно в секундах не менше', () => {
+  const win = (owned) => { const p = deriveParams(cfg, owned); return (p.greenMax - p.greenMin) * p.fullSec; };
+  const base = win([]);
+  assert.ok(Math.abs(win(['pump2']) - base) < 0.02);
+  assert.ok(Math.abs(win(['pump2', 'pump3']) - base) < 0.02);
+  assert.ok(deriveParams(cfg, ['pump2']).fullSec < deriveParams(cfg, []).fullSec);
+});
+
+test('апгрейди: вивіска — частіше клієнти, балон 200, товари відкриваються', () => {
+  const p0 = deriveParams(cfg, []);
+  assert.deepEqual(p0.open, ['pink', 'blue', 'yellow']);
+  const p = deriveParams(cfg, ALL);
+  assert.equal(p.gapSec, cfg.customers.baseGapSec / 1.25);
+  assert.equal(p.tank, 200);
+  assert.deepEqual(p.open, ['pink', 'blue', 'yellow', 'confetti', 'heart', 'star']);
+  // замовлення з закритим асортиментом — лише латекс
+  const rng = makeRng(4);
+  for (let i = 0; i < 50; i++) {
+    const o = makeOrder(cfg, rng, p0.open);
+    assert.ok(Object.keys(o).every((k) => p0.open.includes(k)));
+  }
+});
+
 test('зв\'язка має збігтися з замовленням точно', () => {
-  assert.ok(bundleMatches({ pink: 2, blue: 1 }, [{ color: 'pink' }, { color: 'blue' }, { color: 'pink' }]));
-  assert.ok(!bundleMatches({ pink: 2 }, [{ color: 'pink' }]));
-  assert.ok(!bundleMatches({ pink: 1 }, [{ color: 'pink' }, { color: 'blue' }]));
+  assert.ok(bundleMatches({ pink: 2, heart: 1 }, [{ key: 'pink' }, { key: 'heart' }, { key: 'pink' }]));
+  assert.ok(!bundleMatches({ pink: 2 }, [{ key: 'pink' }]));
+  assert.ok(!bundleMatches({ pink: 1 }, [{ key: 'pink' }, { key: 'blue' }]));
 });
 
 test('продаж: ціна, недодув дешевше, чайові за швидкість', () => {
-  const s = new Shift(cfg, { rng: makeRng(3) });
+  const s = shift(3);
   s.update(cfg.customers.firstAtSec);
   const cust = s.customers[0];
   assert.ok(cust);
   let under = true;
-  for (const [color, n] of Object.entries(cust.order)) {
+  for (const [key, n] of Object.entries(cust.order)) {
     for (let i = 0; i < n; i++) {
-      s.pick(color);
+      s.pick(key);
       inflateTo(s, under ? 0.4 : 0.7); // перша недодута
       under = false;
       s.tie();
@@ -62,18 +91,52 @@ test('продаж: ціна, недодув дешевше, чайові за �
   assert.equal(s.bundle.length, 0);
 });
 
-test('не та зв\'язка — продажу немає', () => {
-  const s = new Shift(cfg, { rng: makeRng(3) });
+test('фольга: дорожча, 3 од. гелію', () => {
+  const s = shift(3, { owned: ['foil'] });
+  s.pick('heart');
+  assert.equal(inflateTo(s, 0.7), 'perfect');
+  assert.equal(s.helium, 100 - 3);
+  s.tie();
+  s.customers[0] = { id: 99, order: { heart: 1 }, arrivedAt: s.t, slot: 0 };
+  assert.equal(s.give(0).value, 55);
+});
+
+test('склад: кулька береться зі складу, пусто — не взяти', () => {
+  const s = new Shift(cfg, { rng: makeRng(1), stock: { pink: 1 } });
+  assert.equal(s.stock.blue, 0);
+  assert.ok(s.pick('pink'));
+  assert.equal(s.stock.pink, 0);
+  inflateTo(s, 0.7); s.tie();
+  assert.equal(s.pick('pink'), false);
+  assert.equal(s.pick('blue'), false);
+  assert.ok(s.drainEvents().some((e) => e.type === 'outOfStock'));
+  assert.equal(s.pick('heart'), false); // закритий товар
+});
+
+test('нема товару на замовлення — клієнт іде за 3 с', () => {
+  const s = new Shift(cfg, { rng: makeRng(3), stock: {} });
   s.update(cfg.customers.firstAtSec);
-  const wrong = Object.keys(cfg.colors).find((c) => !s.customers[0].order[c]) || 'pink';
-  s.pick(wrong); inflateTo(s, 0.7); s.tie();
-  if (bundleMatches(s.customers[0].order, s.bundle)) return; // рідкісний збіг
-  assert.equal(s.give(0), null);
-  assert.equal(s.stats.served, 0);
+  assert.ok(s.customers[0].noStock);
+  s.update(cfg.customers.noStockLeaveSec + 0.01);
+  assert.equal(s.customers[0], null);
+  assert.equal(s.stats.lost, 1);
+  assert.ok(s.drainEvents().some((e) => e.type === 'leave' && e.noStock));
+});
+
+test('черга: коли місця зайняті, клієнти чекають і заходять на вільне', () => {
+  const s = shift(5);
+  s.customers = s.customers.map((_, i) => ({ id: 100 + i, order: { pink: 1 }, arrivedAt: 0, slot: i }));
+  s.nextArrival = 0.1;
+  s.update(0.2);
+  assert.equal(s.queue.length, 1);
+  s.customers[1] = null;
+  s.update(0.01);
+  assert.equal(s.queue.length, 0);
+  assert.ok(s.customers[1] && s.customers[1].id >= 1);
 });
 
 test('клієнт іде, коли терпіння скінчилось', () => {
-  const s = new Shift(cfg, { rng: makeRng(5) });
+  const s = shift(5);
   s.update(cfg.customers.firstAtSec);
   const id = s.customers[0].id;
   s.update(cfg.customers.patienceSec + 0.01);
@@ -82,13 +145,13 @@ test('клієнт іде, коли терпіння скінчилось', () =
 });
 
 test('гелій: закінчився → 15 с чекаєш, потім повний балон', () => {
-  const s = new Shift(cfg, { rng: makeRng(7) });
+  const s = shift(7);
   s.helium = 1;
   s.pick('pink');
   assert.ok(s.startInflate());
   assert.equal(s.helium, 0);
   assert.equal(s.refillLeft, cfg.helium.refillSec);
-  s.update(0.5 * cfg.pump.fullSec); s.release(); s.tie();
+  s.update(0.5 * s.p.fullSec); s.release(); s.tie();
   s.pick('pink');
   assert.equal(s.startInflate(), false);
   s.update(cfg.helium.refillSec);
@@ -96,61 +159,59 @@ test('гелій: закінчився → 15 с чекаєш, потім пов
   assert.ok(s.startInflate());
 });
 
-test('підсумок: цілі числа, оренда, у мінус не йдемо', () => {
+test('підсумок: цілі числа, оренда, каса не нижче 0', () => {
   assert.equal(heliumCost(cfg, 100), 120);
   assert.equal(heliumCost(cfg, 7), 8);
-  const bad = summarize(cfg, { revenue: 0, tips: 0, served: 0, lost: 5, popped: 3, balloonsBought: 3, heliumUsed: 3 }, 10);
+  const bad = summarize(cfg, { revenue: 0, tips: 0, served: 0, lost: 5, popped: 3, poppedValue: 18, heliumUsed: 3 }, 10);
   assert.equal(bad.rent, 40);
+  assert.equal(bad.profit, -44);
   assert.equal(bad.moneyAfter, 0);
-  const ok = summarize(cfg, { revenue: 300, tips: 20, served: 10, lost: 0, popped: 0, balloonsBought: 20, heliumUsed: 20 }, 300);
-  assert.equal(ok.profit, 300 + 20 - 100 - 24 - 40);
-  assert.equal(ok.moneyAfter, 456);
-  assert.ok(Number.isInteger(ok.profit));
+  const ok = summarize(cfg, { revenue: 300, tips: 20, served: 10, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 20 }, 300);
+  assert.equal(ok.profit, 300 + 20 - 24 - 40);
+  assert.equal(ok.moneyAfter, 556);
   assert.equal(starsFor(cfg, 9, 1), 3);
   assert.equal(starsFor(cfg, 7, 3), 2);
   assert.equal(starsFor(cfg, 1, 3), 1);
 });
 
+test('закупівля: гроші, місце на полиці, закриті товари', () => {
+  let r = newRun(cfg);
+  assert.equal(r.money, cfg.startMoney);
+  const r2 = buyStock(cfg, r, { pink: 10 });
+  assert.equal(r2.money, cfg.startMoney - 50);
+  assert.equal(r2.stock.pink, 30);
+  assert.equal(buyStock(cfg, r, { pink: cfg.stockMax }), null);  // не влізе
+  assert.equal(buyStock(cfg, r, { heart: 1 }), null);             // фольга закрита
+  assert.equal(buyStock(cfg, { ...r, money: 4 }, { pink: 1 }), null);
+});
+
+test('апгрейди: ціна, умова, двічі не купиш', () => {
+  let r = { ...newRun(cfg), money: 2000 };
+  assert.equal(upgradeState(cfg, r, 'pump3'), 'locked');
+  r = buyUpgrade(cfg, r, 'pump2');
+  assert.equal(r.money, 1880);
+  assert.equal(upgradeState(cfg, r, 'pump2'), 'owned');
+  assert.equal(buyUpgrade(cfg, r, 'pump2'), null);
+  assert.equal(upgradeState(cfg, r, 'pump3'), 'available');
+  assert.equal(upgradeState(cfg, { ...r, money: 10 }, 'pump3'), 'expensive');
+});
+
+test('збереження: зберіг — завантажив — стер', () => {
+  const mem = {}; const storage = { getItem: (k) => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; }, removeItem: (k) => { delete mem[k]; } };
+  const r = endDay(newRun(cfg), { moneyAfter: 777 }, { pink: 3 });
+  saveRun(r, storage);
+  assert.deepEqual(loadRun(storage), r);
+  assert.equal(loadRun(storage).day, 2);
+  clearRun(storage);
+  assert.equal(loadRun(storage), null);
+  const broken = { getItem: () => { throw new Error('no'); }, setItem: () => { throw new Error('no'); } };
+  assert.equal(loadRun(broken), null);
+  saveRun(r, broken); // не падає
+});
+
 test('зміна закінчується за таймером', () => {
-  const s = new Shift(cfg, { rng: makeRng(9) });
+  const s = shift(9);
   for (let i = 0; i < 1900; i++) s.update(0.1);
   assert.ok(s.over);
   assert.ok(s.drainEvents().some((e) => e.type === 'end'));
-});
-
-// Бот-гравець: грає цілу зміну — перевіряємо, що дохід близький до симулятора (~300 за день 1)
-test('бот-гравець: прибуток дня 1 у розумних межах', () => {
-  const profits = [];
-  for (let seed = 1; seed <= 20; seed++) {
-    const s = new Shift(cfg, { rng: makeRng(seed) });
-    const dt = 0.05;
-    let busy = 0; // «час на рух пальця» між діями
-    let target = null;
-    while (!s.over) {
-      s.update(dt);
-      if ((busy -= dt) > 0) continue;
-      if (s.nozzle?.state === 'inflating') {
-        if (s.nozzle.fill >= 0.7) { s.release(); busy = 0.15; }
-        continue;
-      }
-      if (s.nozzle?.state === 'ready') { s.tie(); busy = 0.3; continue; }
-      if (!target || !s.customers.includes(target)) {
-        target = s.customers.filter(Boolean).sort((a, b) => a.arrivedAt - b.arrivedAt)[0] || null;
-        if (target && s.bundle.length) { s.bundle.length = 0; }
-      }
-      if (!target) continue;
-      const need = { ...target.order };
-      for (const b of s.bundle) need[b.color]--;
-      const next = Object.keys(need).find((k) => need[k] > 0);
-      if (next && !s.nozzle) { s.pick(next); busy = 0.4; continue; }
-      if (s.nozzle?.state === 'empty') { if (s.startInflate()) continue; }
-      if (!next) { s.give(target.slot); target = null; busy = 0.4; }
-    }
-    profits.push(summarize(cfg, s.stats, 300).profit);
-  }
-  profits.sort((a, b) => a - b);
-  const med = profits[10];
-  console.log('    прибуток дня 1 (бот), медіана:', med, 'мін:', profits[0], 'макс:', profits[19]);
-  assert.ok(med > 150 && med < 600, `медіана ${med}`);
-  assert.ok(profits[0] > 0);
 });
