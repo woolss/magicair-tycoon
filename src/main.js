@@ -3,6 +3,7 @@ import { setLang } from './i18n.js';
 import { StartScene } from './scenes/StartScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { SummaryScene } from './scenes/SummaryScene.js';
+import { ShopScene } from './scenes/ShopScene.js';
 
 // Параметри для тестів: ?shift=20 (секунд у зміні), ?seed=1, ?lang=ru
 const q = new URLSearchParams(location.search);
@@ -20,7 +21,7 @@ async function boot() {
     backgroundColor: C.bg,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H },
     input: { activePointers: 2 },
-    scene: [StartScene, GameScene, SummaryScene],
+    scene: [StartScene, GameScene, SummaryScene, ShopScene],
   });
   game.registry.set('opts', opts);
   window.__game = game;
