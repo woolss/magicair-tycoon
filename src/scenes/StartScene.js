@@ -5,6 +5,8 @@ import { newRun, loadRun, saveRun } from '../run.js';
 import { backdrop, floaters, button, card, soundToggle } from '../ui.js';
 
 // Зв'язка кульок над назвою: вузлик унизу, кульки гойдаються
+const SHOP_URL = 'https://magicair.com.ua/?utm_source=magicair_tycoon&utm_medium=game&utm_campaign=main_menu';
+
 const BUNCH = [[-120, -150, 50, 0xff5fb8], [120, -150, 50, 0x4fa3ff], [-60, -225, 56, C.magenta], [62, -222, 54, 0xffc933], [0, -150, 60, C.purple], [-150, -250, 40, 0x3ccf6e], [150, -250, 42, 0xff8a3d]];
 
 export class StartScene extends Phaser.Scene {
@@ -71,5 +73,24 @@ export class StartScene extends Phaser.Scene {
 
     soundToggle(this, 60, 60);
     button(this, W - 90, 60, 130, 64, t('lang'), () => { toggleLang(); this.scene.restart(); }, C.purple, 26);
+    this.shopLink();
+  }
+
+  // Посилання на справжній магазин (з мітками, щоб в аналітиці було видно переходи з гри)
+  shopLink() {
+    const w = 250, h = 64, g = this.add.graphics();
+    g.fillStyle(0x3a1f45, 0.18).fillRoundedRect(-w / 2, -h / 2 + 5, w, h, h / 2)
+      .fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h / 2, w, h, h / 2)
+      .lineStyle(3, C.magenta, 1).strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    // пакет
+    g.fillStyle(C.magenta, 1).fillRoundedRect(-w / 2 + 22, -8, 30, 24, 5);
+    g.lineStyle(3, C.magenta, 1).beginPath().arc(-w / 2 + 37, -8, 8, Math.PI, 0, false).strokePath();
+    const tx = this.add.text(18, 0, t('ourShop'), txt(24, C.magenta)).setOrigin(0.5);
+    const box = this.add.container(W / 2 - 6, 60, [g, tx]).setSize(w, h).setInteractive({ useHandCursor: true });
+    this.tweens.add({ targets: box, scale: 1.04, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // відкриваємо на відпусканні пальця — так браузер не блокує нову вкладку
+    box.on('pointerup', () => {
+      window.open(SHOP_URL, '_blank', 'noopener');
+    });
   }
 }
