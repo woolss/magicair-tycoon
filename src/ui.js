@@ -138,6 +138,14 @@ export function upIcon(g, id, x, y, s = 30) {
     g.lineStyle(3, C.gold, 1).lineBetween(x + s * 0.75, y - s * 0.4, x + s * 0.95, y - s * 0.55).lineBetween(x + s * 0.8, y, x + s * 1.02, y).lineBetween(x + s * 0.75, y + s * 0.4, x + s * 0.95, y + s * 0.55);
     return;
   }
+  if (id === 'car') {
+    // фургон
+    g.fillStyle(C.magenta, 1).fillRoundedRect(x - s * 0.95, y - s * 0.5, s * 1.3, s * 0.85, s * 0.15).fillRoundedRect(x + s * 0.3, y - s * 0.2, s * 0.6, s * 0.55, s * 0.12);
+    g.fillStyle(0xaee0ff, 1).fillRoundedRect(x + s * 0.45, y - s * 0.1, s * 0.33, s * 0.22, s * 0.05);
+    g.fillStyle(0x3a2340, 1).fillCircle(x - s * 0.55, y + s * 0.4, s * 0.2).fillCircle(x + s * 0.55, y + s * 0.4, s * 0.2);
+    drawBalloon(g, x - s * 0.35, y - s * 0.85, s * 0.28, 0x4fa3ff);
+    return;
+  }
   if (id === 'tank200') {
     g.fillStyle(0x3f73e0, 1).fillRoundedRect(x - s * 0.42, y - s * 0.6, s * 0.84, s * 1.4, s * 0.38);
     g.fillStyle(0x7fa8ff, 1).fillRoundedRect(x - s * 0.28, y - s * 0.45, s * 0.18, s * 1.05, s * 0.09);

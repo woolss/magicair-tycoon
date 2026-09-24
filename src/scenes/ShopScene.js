@@ -3,6 +3,7 @@ import { t, itemName, upName, upDesc } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { deriveParams } from '../logic.js';
 import { buyStock, buyUpgrade, upgradeState, stockCost, stockRoom, saveRun } from '../run.js';
+import { makeBooking, bookingShort } from '../event.js';
 import { backdrop, button, card, coinIcon, upIcon, soundToggle, countUp } from '../ui.js';
 import * as sfx from '../sfx.js';
 
@@ -10,7 +11,7 @@ const STEP = 5; // закупівля по 5 штук
 const TABS = { stock: 147, upgrades: 360, shop: 573 };
 const TAB_W = 212;
 const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop' };
-const STAGE3 = ['shop', 'digits', 'helper', 'ads'];   // вкладка «Магазин»
+const STAGE3 = ['shop', 'digits', 'helper', 'ads', 'car'];   // вкладка «Магазин»
 
 // Між змінами: закупівля товару і апгрейди
 export class ShopScene extends Phaser.Scene {
@@ -54,6 +55,65 @@ export class ShopScene extends Phaser.Scene {
     soundToggle(this, W - 60, 1180 - 120, 150, -68);
 
     this.render();
+    this.maybeOffer();
+  }
+
+  // Машина куплена і настав час — пропонуємо бронь на виїзд сьогодні після зміни
+  maybeOffer() {
+    let run = this.run;
+    if (!run.owned.includes('car')) return;
+    if (run.booking && run.booking.day < run.day) run = this.run = { ...run, booking: null, nextEventDay: run.day };  // не доїхали — бронь згоріла
+    if (run.booking || (run.nextEventDay || 0) > run.day) return;
+    const offer = makeBooking(CONFIG, Math.random, run.owned, run.day, run.eventsDone || 0);
+    this.showOffer(offer);
+  }
+
+  showOffer(b) {
+    const layer = this.add.container(0, 0).setDepth(200);
+    const dim = this.add.rectangle(W / 2, 640, W, 1280, 0x2a1238, 0.5).setInteractive();
+    const g = this.add.graphics();
+    const top = 250, h = 760;
+    card(g, 50, top, W - 100, h, 32);
+    g.fillStyle(C.purple, 1).fillRoundedRect(50, top, W - 100, 90, { tl: 32, tr: 32, bl: 0, br: 0 });
+    upIcon(g, 'car', 118, top + 50, 30);
+    layer.add([dim, g]);
+    const T = (x, y, str, style, ox = 0.5) => { const o = this.add.text(x, y, str, style).setOrigin(ox, 0.5); layer.add(o); return o; };
+    T(W / 2 + 30, top + 45, t('eventOffer'), txt(34, C.white));
+    T(W / 2, top + 130, t('ev_' + b.kind), txt(34, C.purple));
+    T(W / 2, top + 175, `${t('eventWhen')} · ${t('eventArch', { n: b.slots.length })}`, txt(22, C.greyDark, { fontStyle: '700' }));
+    // міні-арка за схемою
+    const n = b.slots.length, cx = W / 2, cy = top + 330, R = 120;
+    g.lineStyle(4, 0xc9c3d2, 1).beginPath().arc(cx, cy, R, Math.PI, 0, false).strokePath();
+    b.slots.forEach((k, i) => {
+      const a = Math.PI - (i * Math.PI) / (n - 1), x = cx + Math.cos(a) * R, y = cy - Math.sin(a) * R;
+      if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y, 12);
+      else drawItem(g, CONFIG.items[k], x, y, 11);
+    });
+    // що потрібно і чи є на складі
+    const run = this.run, need = Object.entries(b.need);
+    need.forEach(([k, cnt], i) => {
+      const x = W / 2 + (i - (need.length - 1) / 2) * 120, y = top + 420, have = run.stock[k] || 0, ok = have >= cnt;
+      g.fillStyle(ok ? 0xe3f8ea : 0xffe0e4, 1).fillRoundedRect(x - 52, y - 34, 104, 88, 18);
+      if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y - 6, 16);
+      else drawItem(g, CONFIG.items[k], x, y - 6, 16);
+      T(x, y + 32, `×${cnt}`, txt(22, ok ? C.green : C.red));
+    });
+    const short = bookingShort(b, run.stock).length > 0;
+    T(W / 2, top + 505, t('eventPay', { v: b.pay }) + '   ·   ' + t('eventTime', { s: b.timeSec }), txt(28, C.ink));
+    if (short) T(W / 2, top + 555, t('eventStock'), txt(20, C.red, { fontStyle: '700', align: 'center', wordWrap: { width: 540 } }));
+    const close = () => this.tweens.add({ targets: layer, alpha: 0, duration: 200, onComplete: () => layer.destroy() });
+    const take = button(this, W / 2 - 130, top + 660, 240, 96, t('eventTake'), () => {
+      this.run = { ...this.run, booking: b };
+      sfx.upgrade(); close();
+    }, C.green, 34);
+    const skip = button(this, W / 2 + 130, top + 660, 240, 96, t('eventSkip'), () => {
+      this.run = { ...this.run, booking: null, nextEventDay: this.run.day + CONFIG.event.gapDays[0] };
+      close();
+    }, C.greyDark, 30);
+    layer.add([take, skip]);
+    layer.setAlpha(0);
+    this.tweens.add({ targets: layer, alpha: 1, duration: 250 });
+    sfx.phone();
   }
 
   get run() { return this.registry.get('run'); }
