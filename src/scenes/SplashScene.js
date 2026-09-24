@@ -1,16 +1,19 @@
-import { W, H, C, txt, drawBalloon } from '../theme.js';
+import { W, H, C, drawBalloon } from '../theme.js';
 import { backdrop } from '../ui.js';
 
-// Справжнє лого: коли буде файл — покласти в assets/ і вказати шлях тут
-const LOGO_URL = null;
+// Лого MagicAir з трьох векторних частин (однаковий кадр 960×560, тож лягають одна на одну)
+const PARTS = ['ele', 'ball', 'text'];
+const KNOT = [0.2115, 0.4054];            // вузлик кульки — точка, з якої вона надувається
 const COLS = [0xff5fb8, 0x4fa3ff, 0xffc933, C.purple, C.magenta, 0x3ccf6e, 0xff8a3d];
+const LX = W / 2, LY = H / 2 - 40, SCALE = 0.62;
 
-// Заставка при запуску: кульки злітають, лого «надувається», далі — меню. Тап — пропустити.
+// Заставка: слоник вистрибує, кулька в хоботі надувається, вискакує напис, далі — меню. Тап — пропустити.
 export class SplashScene extends Phaser.Scene {
   constructor() { super('splash'); }
 
   preload() {
-    if (LOGO_URL) this.load.image('logo', LOGO_URL);
+    for (const p of PARTS) this.load.svg(`logo-${p}`, `assets/logo-${p}.svg`, { width: 960, height: 560 });
+    this.load.svg('logo-word', 'assets/logo-word.svg', { width: 922, height: 235 });   // для неонової вивіски
   }
 
   create() {
@@ -30,34 +33,49 @@ export class SplashScene extends Phaser.Scene {
       this.tweens.add({ targets: g, angle: { from: -10, to: 10 }, duration: 500 + i * 30, yoyo: true, repeat: -1 });
     }
 
-    // лого: з'являється маленьким і «надувається» з пружинкою
-    let logo;
-    if (LOGO_URL && this.textures.exists('logo')) {
-      logo = this.add.image(W / 2, H / 2 - 40, 'logo').setDepth(10);
-      const k = Math.min(560 / logo.width, 360 / logo.height);
-      logo.setData('s', k);
-    } else {
-      logo = this.add.text(W / 2, H / 2 - 40, 'MagicAir', txt(110, C.magenta, { stroke: '#ffffff', strokeThickness: 16 })).setOrigin(0.5).setDepth(10);
-      logo.setData('s', 1);
-    }
-    const s = logo.getData('s');
-    logo.setScale(0).setAlpha(0);
-    this.tweens.add({ targets: logo, scale: s, alpha: 1, duration: 750, delay: 500, ease: 'Back.easeOut', easeParams: [2.2] });
-    this.tweens.add({ targets: logo, scale: s * 1.04, duration: 700, delay: 1300, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    const logo = this.add.container(LX, LY).setDepth(10).setScale(SCALE);
+    const img = (k) => this.add.image(0, 0, `logo-${k}`);
+    const ele = img('ele'), text = img('text');
+    // кулька крутиться й росте від вузлика
+    const ball = img('ball').setOrigin(...KNOT);
+    ball.setPosition((KNOT[0] - 0.5) * 960, (KNOT[1] - 0.5) * 560);
+    logo.add([ele, ball, text]);
 
-    // блиск-зірочки навколо лого
-    this.time.delayedCall(900, () => {
+    // 1) слоник вистрибує знизу
+    ele.setAlpha(0).setY(60);
+    this.tweens.add({ targets: ele, alpha: 1, y: 0, duration: 380, delay: 300, ease: 'Back.easeOut' });
+
+    // 2) кулька надувається: трохи «перебирає», стискається і заспокоюється
+    ball.setScale(0.05);
+    this.tweens.chain({
+      targets: ball,
+      tweens: [
+        { scaleX: 1.12, scaleY: 1.08, duration: 520, delay: 650, ease: 'Sine.easeOut' },
+        { scaleX: 0.95, scaleY: 1.03, duration: 130, ease: 'Sine.easeInOut' },
+        { scaleX: 1, scaleY: 1, duration: 160, ease: 'Sine.easeOut' },
+      ],
+    });
+    // потім легенько гойдається на нитці
+    this.tweens.add({ targets: ball, angle: { from: -5, to: 5 }, duration: 1100, delay: 1460, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    // 3) напис вискакує з пружинкою
+    text.setScale(0).setAlpha(0);
+    this.tweens.add({ targets: text, scale: 1, alpha: 1, duration: 520, delay: 1300, ease: 'Back.easeOut', easeParams: [2] });
+    this.tweens.add({ targets: logo, scale: SCALE * 1.03, duration: 700, delay: 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+    // блиск-зірочки, коли все зібралось
+    this.time.delayedCall(1500, () => {
       for (let i = 0; i < 16; i++) {
         const a = (i / 16) * Math.PI * 2;
-        const p = this.add.star(W / 2, H / 2 - 40, 5, 5, 12, COLS[i % COLS.length]);
+        const p = this.add.star(LX, LY, 5, 5, 12, COLS[i % COLS.length]).setDepth(9);
         this.tweens.add({
-          targets: p, x: W / 2 + Math.cos(a) * 320, y: H / 2 - 40 + Math.sin(a) * 240, angle: 200, alpha: 0, scale: 0.4,
+          targets: p, x: LX + Math.cos(a) * 330, y: LY + Math.sin(a) * 250, angle: 200, alpha: 0, scale: 0.4,
           duration: 900, ease: 'Cubic.easeOut', onComplete: () => p.destroy(),
         });
       }
     });
 
-    this.time.delayedCall(2900, () => this.next());
+    this.time.delayedCall(3300, () => this.next());
     this.input.once('pointerdown', () => this.next());
   }
 

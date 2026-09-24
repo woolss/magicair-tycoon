@@ -107,11 +107,18 @@ export function drawRoom(scene, rich = false) {
     const tex = scene.textures.createCanvas(neon, 440, 330);
     const ctx = tex.getContext();
     ctx.setTransform(1, Math.tan(Math.PI / 6), 0, 1, 0, 0);
-    ctx.font = '900 60px Nunito, Arial, sans-serif';
-    ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
     ctx.shadowColor = '#ff5fe0'; ctx.shadowBlur = rich ? 26 : 16;   // у магазині неон яскравіший
-    ctx.fillStyle = '#ff5fe0';
-    ctx.fillText('MagicAir', 10, 80); ctx.strokeText('MagicAir', 10, 80); ctx.fillText('MagicAir', 10, 80);
+    const word = scene.textures.exists('logo-word') && scene.textures.get('logo-word').getSourceImage();
+    if (word) {
+      // напис із лого MagicAir в один рядок
+      const h = 58, w = (word.width / word.height) * h;
+      ctx.drawImage(word, 10, 30, w, h); ctx.drawImage(word, 10, 30, w, h);
+    } else {
+      ctx.font = '900 60px Nunito, Arial, sans-serif';
+      ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ff5fe0';
+      ctx.fillText('MagicAir', 10, 80); ctx.strokeText('MagicAir', 10, 80); ctx.fillText('MagicAir', 10, 80);
+    }
     tex.refresh();
   }
   scene.add.image(sx - 10, sy - 80, neon).setOrigin(0, 0).setDepth(0);
