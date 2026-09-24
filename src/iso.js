@@ -1,7 +1,8 @@
 // Ізометричний магазин: проекція, зал, прилавок, люди. Малюємо простими формами (до арту).
 import { C, drawBalloon, drawItem } from './theme.js';
 
-export const ISO = { S: 46, OX: 330, OY: 400 };
+// Масштаб і кут кімнати підігнані під арт-фони (кут підлоги на фоні = P(0, 0))
+export const ISO = { S: 49.2, OX: 352, OY: 400 };
 const C30 = 0.866;
 
 // (x, y, z) у клітинках підлоги → точка на екрані
@@ -48,8 +49,73 @@ export const SPOT = {
   helper: [7.8, 3.5],         // другий продавець — за прилавком, ближче до каси
 };
 
+// Арт-фони кімнати (1024×1536, ChatGPT). Координати нижче — у пікселях оригіналу.
+export const ART = {
+  k: 0.72, x: -8, y: 33,   // масштаб і зсув фону на екрані
+  door: [0.3, 7.1],        // вхід для покупців — двері на фоні
+  point: {
+    tank: [372, 578],   // шланг виходить з редуктора на підлозі біля балонів
+    shelves: [[[565, 350], [880, 512], 6], [[560, 438], [880, 600], 6]],
+  },
+  shop: {
+    tank: [378, 578],
+    shelves: [
+      [[555, 282], [790, 398], 6], [[555, 370], [790, 485], 6], [[555, 455], [790, 570], 6],
+      [[865, 458], [995, 525], 3], [[862, 548], [995, 615], 3], [[862, 640], [995, 705], 3],
+    ],
+  },
+};
+const artAt = (px, py) => [ART.x + px * ART.k, ART.y + py * ART.k];
+
+// Кімната з арт-фоном: фон + товар на його полицях + неон
+function drawArtRoom(scene, rich, key) {
+  const A = rich ? ART.shop : ART.point;
+  scene.add.image(ART.x, ART.y, key).setOrigin(0).setDisplaySize(1024 * ART.k, 1536 * ART.k).setDepth(0);
+  const g = scene.add.graphics().setDepth(0);
+  const heart = { kind: 'heart', color: 0xff3b6b }, star = { kind: 'star', color: 0xffc21a };
+  const cols = [0xff5fb8, 0x4fa3ff, 0xffc933, 0xb338b5, 0x3ccf6e];
+  A.shelves.forEach(([[x0, y0], [x1, y1], n], row) => {
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n, [x, y] = artAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+      if (row % 2 === 1 && i % 3 === 1) drawItem(g, heart, x, y - 15, 14);
+      else if (row % 2 === 1 && i % 3 === 2) drawItem(g, star, x, y - 15, 14);
+      else drawBalloon(g, x, y - 16, 13, cols[(i + row * 2) % 5]);
+    }
+  });
+  drawNeon(scene, rich);
+  SPOT.door = ART.door;
+  return { g, tankTop: artAt(...A.tank) };
+}
+
+// Неонова вивіска на рожевій стіні: текст зі зсувом під кут стіни (як намальований на ній)
+function drawNeon(scene, rich) {
+  const [sx, sy] = P(3.4, 0, 5.0);
+  const neon = rich ? 'neon2' : 'neon';
+  if (!scene.textures.exists(neon)) {
+    const tex = scene.textures.createCanvas(neon, 440, 330);
+    const ctx = tex.getContext();
+    ctx.setTransform(1, Math.tan(Math.PI / 6), 0, 1, 0, 0);
+    ctx.shadowColor = '#ff5fe0'; ctx.shadowBlur = rich ? 26 : 16;   // у магазині неон яскравіший
+    const word = scene.textures.exists('logo-word') && scene.textures.get('logo-word').getSourceImage();
+    if (word) {
+      // напис із лого MagicAir в один рядок
+      const h = 58, w = (word.width / word.height) * h;
+      ctx.drawImage(word, 10, 30, w, h); ctx.drawImage(word, 10, 30, w, h);
+    } else {
+      ctx.font = '900 60px Nunito, Arial, sans-serif';
+      ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
+      ctx.fillStyle = '#ff5fe0';
+      ctx.fillText('MagicAir', 10, 80); ctx.strokeText('MagicAir', 10, 80); ctx.fillText('MagicAir', 10, 80);
+    }
+    tex.refresh();
+  }
+  scene.add.image(sx - 10, sy - 80, neon).setOrigin(0, 0).setDepth(0);
+}
+
 // Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
 export function drawRoom(scene, rich = false) {
+  const key = rich ? 'bg-shop' : 'bg-point';
+  if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key);
   const g = scene.add.graphics().setDepth(0);
   const R = 13, WH = 6, F = 19;
   if (rich) {
@@ -100,28 +166,7 @@ export function drawRoom(scene, rich = false) {
       else drawBalloon(g, x, y - 16, 13, cols[(i + row * 2) % 5]);
     }
   });
-  // неонова вивіска на рожевій стіні: текст зі зсувом під кут стіни (як намальований на ній)
-  const [sx, sy] = P(3.4, 0, 5.0);
-  const neon = rich ? 'neon2' : 'neon';
-  if (!scene.textures.exists(neon)) {
-    const tex = scene.textures.createCanvas(neon, 440, 330);
-    const ctx = tex.getContext();
-    ctx.setTransform(1, Math.tan(Math.PI / 6), 0, 1, 0, 0);
-    ctx.shadowColor = '#ff5fe0'; ctx.shadowBlur = rich ? 26 : 16;   // у магазині неон яскравіший
-    const word = scene.textures.exists('logo-word') && scene.textures.get('logo-word').getSourceImage();
-    if (word) {
-      // напис із лого MagicAir в один рядок
-      const h = 58, w = (word.width / word.height) * h;
-      ctx.drawImage(word, 10, 30, w, h); ctx.drawImage(word, 10, 30, w, h);
-    } else {
-      ctx.font = '900 60px Nunito, Arial, sans-serif';
-      ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
-      ctx.fillStyle = '#ff5fe0';
-      ctx.fillText('MagicAir', 10, 80); ctx.strokeText('MagicAir', 10, 80); ctx.fillText('MagicAir', 10, 80);
-    }
-    tex.refresh();
-  }
-  scene.add.image(sx - 10, sy - 80, neon).setOrigin(0, 0).setDepth(0);
+  drawNeon(scene, rich);
   if (rich) {
     // арка з кульок над дверима і гірлянда-вогники вздовж рожевої стіни
     for (let i = 0; i <= 12; i++) {
@@ -148,9 +193,10 @@ export function drawCounter(scene, tankTop) {
   box(g, [8.7, 9.4, 4.85, 5.1, 2.6, 3.2], 0xbfe6ff, 0x4a3f5c, 0x5c506e);
   const [nx, ny] = P(...SPOT.nozzle);
   const [tx, ty] = tankTop;
+  const low = ty > ny;   // арт-фон: шланг виходить з редуктора на підлозі, а не з верху балона
   const hose = new Phaser.Curves.CubicBezier(
-    new Phaser.Math.Vector2(tx, ty), new Phaser.Math.Vector2(tx - 30, ty + 40),
-    new Phaser.Math.Vector2(nx - 40, ny - 10), new Phaser.Math.Vector2(nx - 4, ny - 8));
+    new Phaser.Math.Vector2(tx, ty), new Phaser.Math.Vector2(low ? tx - 4 : tx - 30, low ? ty + 8 : ty + 40),
+    new Phaser.Math.Vector2(low ? nx + 16 : nx - 40, low ? ny + 2 : ny - 10), new Phaser.Math.Vector2(nx - 4, ny - 8));
   g.lineStyle(6, 0x5b5566, 1).strokePoints(hose.getPoints(24));
   g.fillStyle(0x7c8a99, 1).fillRoundedRect(nx - 8, ny - 22, 16, 22, 4);
   return g;

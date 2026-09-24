@@ -45,6 +45,7 @@ export class EventScene extends Phaser.Scene {
 
   // ---------- сцена свята ----------
   drawVenue() {
+    if (this.textures.exists('bg-venue')) { this.add.image(0, 0, 'bg-venue').setOrigin(0).setDisplaySize(W, W * 1.5).setDepth(0); return; }
     const g = this.add.graphics().setDepth(0);
     // підлога
     g.fillStyle(0xf6e3d0, 1).fillRect(0, 900, W, 400);
