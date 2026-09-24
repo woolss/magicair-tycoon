@@ -7,7 +7,10 @@ import { backdrop, button, card, coinIcon, upIcon, soundToggle, countUp } from '
 import * as sfx from '../sfx.js';
 
 const STEP = 5; // закупівля по 5 штук
-const TABS = { stock: 190, upgrades: 530 };
+const TABS = { stock: 147, upgrades: 360, shop: 573 };
+const TAB_W = 212;
+const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop' };
+const STAGE3 = ['shop', 'digits', 'helper', 'ads'];   // вкладка «Магазин»
 
 // Між змінами: закупівля товару і апгрейди
 export class ShopScene extends Phaser.Scene {
@@ -36,8 +39,8 @@ export class ShopScene extends Phaser.Scene {
     this.tabHi = this.add.graphics();
     this.tabTexts = {};
     for (const [id, x] of Object.entries(TABS)) {
-      this.tabTexts[id] = this.add.text(x, 206, t(id === 'stock' ? 'tabStock' : 'tabUpgrades'), txt(30, C.purple)).setOrigin(0.5);
-      this.add.zone(x, 206, 320, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      this.tabTexts[id] = this.add.text(x, 206, t(TAB_LABEL[id]), txt(27, C.purple)).setOrigin(0.5);
+      this.add.zone(x, 206, TAB_W, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         if (this.tab === id) return;
         sfx.click();
         this.tab = id; this.render();
@@ -72,9 +75,10 @@ export class ShopScene extends Phaser.Scene {
     const run = this.run;
     this.titleText.setText(t('shopTitle', { n: run.day }));
     this.startBtn.label.setText(t('startDay', { n: run.day }));
-    this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(TABS[this.tab] - 160, 174, 320, 64, 32);
+    this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(TABS[this.tab] - TAB_W / 2 + 4, 174, TAB_W - 8, 64, 32);
     for (const [id, tx] of Object.entries(this.tabTexts)) tx.setColor(id === this.tab ? '#ffffff' : '#b338b5');
-    if (this.tab === 'stock') this.renderStock(run); else this.renderUpgrades(run);
+    if (this.tab === 'stock') this.renderStock(run);
+    else this.renderUpgrades(run, CONFIG.upgrades.filter((u) => (this.tab === 'shop') === STAGE3.includes(u.id)));
   }
 
   cardAt(y, h) {
@@ -86,9 +90,10 @@ export class ShopScene extends Phaser.Scene {
 
   renderStock(run) {
     const open = deriveParams(CONFIG, run.owned).open;
+    const rowH = open.length > 6 ? 94 : 108;           // 7 товарів — картки щільніші
     open.forEach((key, i) => {
-      const y = 320 + i * 108, it = CONFIG.items[key];
-      const g = this.cardAt(y, 96);
+      const y = 320 + i * rowH, it = CONFIG.items[key];
+      const g = this.cardAt(y, rowH - 12);
       g.fillStyle(0xfff0fb, 1).fillCircle(90, y, 38);
       drawItem(g, it, 90, y - 3, 24);
       const have = run.stock[key] || 0, n = this.pending[key] || 0;
@@ -107,7 +112,7 @@ export class ShopScene extends Phaser.Scene {
 
     const cost = stockCost(CONFIG, this.pending);
     const ok = cost > 0 && cost <= run.money;
-    const y = 320 + open.length * 108 - 10;
+    const y = 320 + open.length * rowH - 10;
     this.content.add(this.add.text(W / 2, y, t('total', { v: cost }), txt(32, cost > run.money ? C.red : C.ink)).setOrigin(0.5));
     if (cost > run.money) this.content.add(this.add.text(W / 2, y + 40, t('notEnough'), txt(22, C.red)).setOrigin(0.5));
     this.content.add(button(this, W / 2, y + 100, 320, 86, t('buy'), () => {
@@ -121,8 +126,8 @@ export class ShopScene extends Phaser.Scene {
     }, ok ? C.green : C.grey, 34));
   }
 
-  renderUpgrades(run) {
-    CONFIG.upgrades.forEach((u, i) => {
+  renderUpgrades(run, list) {
+    list.forEach((u, i) => {
       const y = 320 + i * 108;
       const st = upgradeState(CONFIG, run, u.id);
       const g = this.cardAt(y, 96);
@@ -148,8 +153,8 @@ export class ShopScene extends Phaser.Scene {
         }, st === 'available' ? C.magenta : C.grey, 28));
       }
     });
-    const y = 320 + CONFIG.upgrades.length * 108 - 10;
-    this.content.add(this.add.text(W / 2, y, t('soon'), txt(22, C.greyDark, { fontStyle: '700' })).setOrigin(0.5));
+    const y = 320 + list.length * 108 - 10;
+    this.content.add(this.add.text(W / 2, y, t(this.tab === 'shop' ? 'soonCar' : 'soon'), txt(22, C.greyDark, { fontStyle: '700' })).setOrigin(0.5));
   }
 
   floatNote(x, y, str) {
