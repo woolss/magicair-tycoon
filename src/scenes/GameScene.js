@@ -4,7 +4,7 @@ import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, lookFor } from '../iso.js';
-import { coinIcon, soundToggle } from '../ui.js';
+import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
 
 const ITEM = (k) => CONFIG.items[k];
@@ -89,7 +89,11 @@ export class GameScene extends Phaser.Scene {
     this.renderBundle();
     this.buildTicket();
     soundToggle(this, 48, 178);
-    this.events.once('shutdown', () => sfx.inflateStop());
+    this.buildPause();
+    // згорнули гру — ставимо на паузу, щоб клієнти не пішли
+    const onHide = () => { if (document.hidden) this.setPaused(true); };
+    document.addEventListener('visibilitychange', onHide);
+    this.events.once('shutdown', () => { sfx.inflateStop(); document.removeEventListener('visibilitychange', onHide); });
     if (typeof window !== 'undefined') window.__scene = this;
   }
 
@@ -161,6 +165,38 @@ export class GameScene extends Phaser.Scene {
     if (!nz) return;
     if (nz.state === 'ready') this.shift.tie();
     else if (nz.state === 'empty' && this.shift.startInflate()) this.pickAnim = null;
+  }
+
+  // ---------- пауза ----------
+  buildPause() {
+    // кнопка: біле коло з двома рисками, поруч із кнопками звуку
+    const g = this.add.graphics();
+    g.fillStyle(0x3a1f45, 0.2).fillCircle(0, 4, 28).fillStyle(C.white, 1).fillCircle(0, 0, 28);
+    g.fillStyle(C.purple, 1).fillRoundedRect(-10, -11, 7, 22, 3).fillRoundedRect(3, -11, 7, 22, 3);
+    const btn = this.add.container(184, 178, [g]).setSize(64, 64).setDepth(150).setInteractive({ useHandCursor: true });
+    btn.on('pointerdown', () => { sfx.click(); this.setPaused(true); });
+
+    // затемнення з табличкою; ловить усі дотики, поки пауза
+    const dim = this.add.rectangle(W / 2, 640, W, 1280, 0x2a1238, 0.55).setDepth(400).setInteractive();
+    const card = this.add.graphics();
+    card.fillStyle(0x3a1f45, 0.25).fillRoundedRect(-230, -150, 460, 300, 40).fillStyle(C.white, 1).fillRoundedRect(-230, -160, 460, 300, 40);
+    const title = this.add.text(0, -80, t('paused'), txt(56, C.purple)).setOrigin(0.5);
+    const resume = button(this, 0, 40, 340, 100, t('resume'), () => this.setPaused(false), C.green, 38);
+    this.pauseBox = this.add.container(W / 2, 600, [card, title, resume]).setDepth(401);
+    this.pauseLayer = [dim, this.pauseBox];
+    this.pauseLayer.forEach((o) => o.setVisible(false));
+    this.paused = false;
+  }
+
+  setPaused(on) {
+    if (this.ending || this.paused === on) return;
+    this.paused = on;
+    if (on) { this.shift.release(); sfx.inflateStop(); }
+    this.pauseLayer.forEach((o) => o.setVisible(on));
+    if (on) {
+      this.pauseBox.setScale(0.6);
+      this.tweens.add({ targets: this.pauseBox, scale: 1, duration: 260, ease: 'Back.easeOut' });
+    }
   }
 
   // ---------- люди ----------
@@ -253,6 +289,7 @@ export class GameScene extends Phaser.Scene {
   // ---------- події логіки ----------
   update() {
     // реальний час, а не згладжений Phaser-ом: на слабкому телефоні зміна не сповільнюється
+    if (this.paused) { sfx.inflateStop(); return; }
     const deltaMs = Math.min(this.game.loop.rawDelta, 250);
     const s = this.shift;
     s.update(deltaMs / 1000);
