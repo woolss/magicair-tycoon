@@ -94,7 +94,10 @@ export class SummaryScene extends Phaser.Scene {
     if (s.poppedValue) extra.push(this.add.text(W / 2, ey, t('poppedValue', { v: s.poppedValue }), txt(24, C.red, { fontStyle: '700' })).setOrigin(0.5).setAlpha(0));
     this.tweens.add({ targets: extra, alpha: 1, duration: 300, delay: tMoney + 400 });
 
-    const next = button(this, W / 2, 1150, 520, 110, t('toShop'), () => this.scene.start('shop'));
+    // сьогодні є бронь на виїзд — спершу туди
+    const run = this.registry.get('run');
+    const toEvent = !!(run && run.booking && run.booking.day === this.day);
+    const next = button(this, W / 2, 1150, 520, 110, t(toEvent ? 'toEvent' : 'toShop'), () => this.scene.start(toEvent ? 'event' : 'shop'), toEvent ? C.green : C.magenta);
     // гравець міг ще тапати в кінці зміни — не пропускаємо підсумок випадково
     next.disableInteractive().setAlpha(0);
     this.time.delayedCall(900, () => {

@@ -70,6 +70,8 @@ export const CONFIG = {
     { id: 'digits',   price: 2000, req: 'shop', effect: { unlock: 'digits' } },
     { id: 'helper',   price: 2400, req: 'shop', effect: { helper: true } },
     { id: 'ads',      price: 2500, req: 'shop', effect: { birthday: 0.4 } },
+    // ступінь 4 — машина: виїзди на оформлення (арки)
+    { id: 'car',      price: 5000, req: 'digits', effect: { car: true } },
   ],
 
   // Магазин: дорожча оренда, клієнти терплячіші (потік клієнтів НЕ росте)
@@ -89,6 +91,18 @@ export const CONFIG = {
     latexMin: 2, latexMax: 4, foilMin: 1, foilMax: 2, confettiChance: 0.4,
     fee: 60,             // оплата доставки
     tipIfWithinSec: 35,  // упакував швидко — чайові
+  },
+
+  // Виїзди (апгрейд «Машина»): бронь на підготовці, після зміни — арка за схемою кольорів
+  event: {
+    gapDays: [2, 3],     // нова бронь через 2–3 дні після попередньої (чи відмови)
+    sizes: [13, 17, 21], // кульок в арці (непарно — одна по центру вгорі): перший виїзд, другий, далі
+    kinds: ['birthday', 'kids', 'wedding', 'graduation'],
+    payPerBalloon: 30, setupFee: 150, digitBonus: 100,
+    baseSec: 15, secPerBalloon: 2,     // час на арку: 13 кульок — 41 с, 17 — 49 с, 21 — 57 с
+    mistakes3: 0, mistakes2: 2,        // лопнули + зайві: 0 → 3★, ≤2 → 2★
+    partialMul: 0.6,     // не встиг — платять лише за зібране, і менше
+    tipMul: 0.15,        // чайові за 3★
   },
 
   // Зірки за частку обслужених клієнтів
