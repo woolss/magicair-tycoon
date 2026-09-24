@@ -15,11 +15,13 @@ export const CONFIG = {
     confetti: { buy: 10, sell: 30, helium: 1, kind: 'confetti', unlock: 'confetti', color: 0xf3eef8 },
     heart:    { buy: 20, sell: 55, helium: 3, kind: 'heart', unlock: 'foil',     color: 0xff3b6b },
     star:     { buy: 20, sell: 55, helium: 3, kind: 'star',  unlock: 'foil',     color: 0xf5b400 },
+    digit:    { buy: 40, sell: 100, helium: 6, kind: 'digit', unlock: 'digits',  color: 0xffc21a },
   },
   stockMax: 60,         // місця на полиці під кожен товар
 
   // Замовлення (як у симуляторі): латекс 1–3 завжди, конфеті 40% ×1–2, фольга 50% ×1–2
-  orders: { latexMin: 1, latexMax: 3, confettiChance: 0.4, foilChance: 0.5 },
+  // День народження (коли відкриті цифри): до звичайного замовлення додається одна цифра
+  orders: { latexMin: 1, latexMax: 3, confettiChance: 0.4, foilChance: 0.5, birthdayChance: 0.2 },
 
   helium: {
     tank: 100,          // од. в балоні (апгрейд — 200)
@@ -40,7 +42,7 @@ export const CONFIG = {
   customers: {
     slots: 3,           // місць біля прилавка
     queueMax: 3,        // ще стільки чекають у черзі
-    baseGapSec: 6,      // середній інтервал приходу (точка)
+    baseGapSec: 8,      // середній інтервал приходу (точка); ріст — через дорожчі замовлення, не через натовп
     firstAtSec: 1.5,
     patienceSec: 35,    // скільки клієнт чекає біля прилавка (відлік — коли підійшов)
     queuePatienceSec: 45, // скільки чекає в черзі, поки не звільниться місце
@@ -63,7 +65,18 @@ export const CONFIG = {
     { id: 'tank200',  price: 500, req: null,    effect: { tank: 200 } },
     { id: 'pump3',    price: 900, req: 'pump2', effect: { pump: 2 } },
     { id: 'online',   price: 1200, req: 'foil', effect: { online: true } },
+    // ступінь 3 — магазин
+    { id: 'shop',     price: 2500, req: 'foil', effect: { shop: true } },
+    { id: 'digits',   price: 2000, req: 'shop', effect: { unlock: 'digits' } },
+    { id: 'helper',   price: 2400, req: 'shop', effect: { helper: true } },
+    { id: 'ads',      price: 2500, req: 'shop', effect: { birthday: 0.4 } },
   ],
+
+  // Магазин: дорожча оренда, клієнти терплячіші (потік клієнтів НЕ росте)
+  shop: { rent: 150, patienceSec: 45 },
+
+  // Другий продавець: сам обслуговує прості замовлення (лише латекс, до 2 кульок), повільніше за гравця
+  helper: { salary: 70, serveSec: 8, maxBalloons: 2 },
 
   // Онлайн-замовлення з доставкою (апгрейд «online»): одне за раз, більший набір, більше часу, кур'єр забирає коробку
   online: {
