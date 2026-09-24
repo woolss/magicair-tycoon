@@ -285,8 +285,13 @@ export class Shift {
 
   // Тап по товару на полиці
   pick(key) {
-    if (this.over || this.nozzle || !(key in this.stock)) return false;
+    if (this.over || !(key in this.stock)) return false;
+    // ще не почав дути — можна передумати: кулька повертається на полицю, береш іншу
+    const nz = this.nozzle;
+    if (nz && !(nz.state === 'empty' && !nz.paid)) return false;
+    if (nz && nz.key === key) return false;
     if (this.stock[key] <= 0) { this.emit('outOfStock', { key }); return false; }
+    if (nz) { this.stock[nz.key]++; this.nozzle = null; }
     this.stock[key]--;
     this.nozzle = { key, fill: 0, state: 'empty', quality: null };
     this.emit('pick', { key });

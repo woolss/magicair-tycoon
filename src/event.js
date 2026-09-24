@@ -88,8 +88,13 @@ export class EventShift {
   }
 
   pick(key) {
-    if (this.over || this.nozzle) return false;
+    if (this.over) return false;
+    // ще не почав дути — можна передумати й узяти інший колір
+    const nz = this.nozzle;
+    if (nz && !(nz.state === 'empty' && !nz.paid)) return false;
+    if (nz && nz.key === key) return false;
     if (!(this.stock[key] > 0)) { this.emit('outOfStock', { key }); return false; }
+    if (nz) { this.stock[nz.key]++; this.nozzle = null; }
     this.stock[key]--;
     this.nozzle = { key, fill: 0, state: 'empty' };
     this.emit('pick', { key });
