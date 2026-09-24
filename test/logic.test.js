@@ -53,7 +53,7 @@ test('апгрейди: вивіска — частіше клієнти, бал
   const p = deriveParams(cfg, ALL);
   assert.equal(p.gapSec, cfg.customers.baseGapSec / 1.15);
   assert.equal(p.tank, 200);
-  assert.deepEqual(p.open, ['pink', 'blue', 'yellow', 'confetti', 'heart', 'star']);
+  assert.deepEqual(p.open, ['pink', 'blue', 'yellow', 'confetti', 'heart', 'star', 'digit']);
   // замовлення з закритим асортиментом — лише латекс
   const rng = makeRng(4);
   for (let i = 0; i < 50; i++) {
@@ -296,4 +296,45 @@ test('онлайн: не встиг — замовлення скасовуєт�
   assert.equal(s.stats.onlineMissed, 1);
   assert.equal(s.stats.lost, 1);
   assert.equal(s.stats.revenue, 0);
+});
+
+test('магазин: оренда 150, терпіння довше, потік клієнтів не росте', () => {
+  const p0 = deriveParams(cfg, ['foil']), p = deriveParams(cfg, ['foil', 'shop']);
+  assert.equal(p.rent, 150);
+  assert.equal(p.patienceSec, cfg.shop.patienceSec);
+  assert.equal(p.gapSec, p0.gapSec);
+  const s = shift(4, { owned: ['foil', 'shop'] });
+  s.update(1);
+  const sum = summarize(cfg, s.stats, 0);
+  assert.equal(sum.rent, 150);
+});
+
+test('цифри: день народження — звичайне замовлення + одна цифра', () => {
+  const open = deriveParams(cfg, ['foil', 'shop', 'digits']).open;
+  assert.ok(open.includes('digit'));
+  const rng = makeRng(11);
+  let bd = 0;
+  for (let i = 0; i < 400; i++) {
+    const o = makeOrder(cfg, rng, open, 0.2);
+    if (o.digit) { bd++; assert.equal(o.digit, 1); }
+  }
+  assert.ok(bd > 40 && bd < 130);                       // ≈20%
+  assert.ok(deriveParams(cfg, ['foil', 'shop', 'digits', 'ads']).birthday > 0.2);
+});
+
+test('другий продавець: сам віддає просте замовлення, зарплата +70', () => {
+  const s = shift(6, { owned: ['foil', 'shop', 'helper'] });
+  assert.equal(s.stats.salary, cfg.salary + cfg.helper.salary);
+  s.nextArrival = Infinity;
+  s.customers[0] = { id: 90, order: { pink: 1, blue: 1 }, arrivedAt: 0, seatedAt: 0, slot: 0 };
+  s.customers[1] = { id: 91, order: { heart: 1 }, arrivedAt: 0, seatedAt: 0, slot: 1 };
+  const pink = s.stock.pink;
+  s.update(0.1);
+  assert.ok(s.customers[0].helper);                     // простий — бере помічник
+  assert.ok(!s.customers[1].helper);                    // фольга — не бере
+  assert.equal(s.stock.pink, pink - 1);
+  s.update(cfg.helper.serveSec);
+  assert.equal(s.customers[0], null);
+  assert.equal(s.stats.helperServed, 1);
+  assert.equal(s.stats.revenue, 30);
 });

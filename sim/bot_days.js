@@ -26,10 +26,10 @@ export function playShift(s, skill, rng) {
       continue;
     }
     if (nz?.state === 'ready') { s.tie(); busy = skill.move * 0.6; continue; }
-    const gone = target && (target.online ? s.online !== target.online : !s.customers.includes(target));
+    const gone = target && (target.online ? s.online !== target.online : !s.customers.includes(target) || target.helper);
     if (!target || gone) {
       // живий клієнт першим; онлайн — коли нікого нема або до кінця терміну < 30 с
-      const walk = s.customers.filter((c) => c && !c.noStock).sort((a, b) => a.arrivedAt - b.arrivedAt)[0] || null;
+      const walk = s.customers.filter((c) => c && !c.noStock && !c.helper).sort((a, b) => a.arrivedAt - b.arrivedAt)[0] || null;
       target = s.online && (!walk || s.online.deadline - s.t < 30) ? { online: s.online, order: s.online.order } : walk;
       if (s.bundle.length) { while (s.bundle.length) s.discard(0); }
     }
@@ -48,7 +48,7 @@ export function playShift(s, skill, rng) {
 
 // Скільки тримати на складі (≈ попит дня з запасом)
 function stockTargets(open) {
-  const t = { pink: 26, blue: 26, yellow: 26, confetti: 18, heart: 20, star: 20 };
+  const t = { pink: 26, blue: 26, yellow: 26, confetti: 18, heart: 20, star: 20, digit: 10 };
   return Object.fromEntries(open.map((k) => [k, t[k]]));
 }
 
@@ -81,7 +81,7 @@ function shop(cfg, run) {
   return buyStock(cfg, run, order) || run;
 }
 
-export function runDays(skillName, seed, days = 20, cfg = CONFIG) {
+export function runDays(skillName, seed, days = 30, cfg = CONFIG) {
   const rng = makeRng(seed * 7919 + 1);
   let run = newRun(cfg);
   const dayOf = {}, profits = [];
@@ -113,6 +113,6 @@ if (process.argv[1] && process.argv[1].endsWith('bot_days.js')) {
       const v = days[u.id] || [];
       console.log(`  ${u.id.padEnd(9)} день ${v.length ? median(v) : '—'}   (${v.length}/40)`);
     }
-    console.log(`  прибуток дня 1: медіана ${median(d1)}; найгірший день за 20 днів: ${Math.min(...mins)}`);
+    console.log(`  прибуток дня 1: медіана ${median(d1)}; найгірший день за 30 днів: ${Math.min(...mins)}`);
   }
 }
