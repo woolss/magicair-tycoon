@@ -71,7 +71,7 @@ export const CONFIG = {
     { id: 'helper',   price: 2400, req: 'shop', effect: { helper: true } },
     { id: 'ads',      price: 2500, req: 'shop', effect: { birthday: 0.4 } },
     // ступінь 4 — машина: виїзди на оформлення (арки)
-    { id: 'car',      price: 5000, req: 'digits', effect: { car: true } },
+    { id: 'car',      price: 5000, req: 'helper', effect: { car: true } },   // поки ти на виїзді, магазин тримає продавець
   ],
 
   // Магазин: дорожча оренда, клієнти терплячіші (потік клієнтів НЕ росте)
