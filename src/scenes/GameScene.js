@@ -18,7 +18,9 @@ const HINT_Y = 1010;                            // плашка-підказка
 function barSlots(n) {
   return Array.from({ length: n }, (_, i) => n <= 3
     ? { x: 84 + i * 112, y: 1168, r: 46 }
-    : { x: 84 + (i % 3) * 112, y: i < 3 ? 1118 : 1220, r: 44 });
+    : n <= 6
+      ? { x: 84 + (i % 3) * 112, y: i < 3 ? 1118 : 1220, r: 44 }
+      : { x: 64 + (i % 4) * 94, y: i < 4 ? 1118 : 1220, r: 40 });   // 7–8 товарів — по 4 в ряд
 }
 const BUBBLE_Y = -168;                          // низ хмаринки над головою
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
@@ -26,6 +28,7 @@ const shadeDark = 0xa10e93;
 const MONEY_ICON = { x: 48, y: 55 };             // куди летять монетки
 const TICKET = { x: 544, y: 140, w: 162, h: 176 }; // чек онлайн-замовлення — праворуч угорі
 const COURIER = { shirt: 0xff8a3d, pants: 0x2f2f44, skin: 0xf2c3a0, hair: 0x2b1a12 };
+const HELPER = { shirt: 0xffffff, pants: 0x3f5f9e, skin: 0xe0ae88, hair: 0x1e1410, apron: C.purple, long: true };
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
 
 export class GameScene extends Phaser.Scene {
@@ -51,12 +54,20 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x3b2250);
 
     // Сцена: зал → продавець → прилавок → кулька/зв'язка → люди → інтерфейс
-    const { tankTop } = drawRoom(this);
+    const { tankTop } = drawRoom(this, this.shift.p.shop);
     const seller = this.add.graphics().setDepth(1);
     drawPerson(seller, SELLER, false);
     const [sx, sy] = P(...SPOT.seller);
     seller.setPosition(sx, sy);
     this.add.text(sx, sy - 64, 'MagicAir', txt(10, C.white)).setOrigin(0.5).setDepth(1);
+    if (this.shift.helper) {
+      const hg = this.add.graphics().setDepth(1);
+      drawPerson(hg, HELPER, false);
+      const [hx, hy] = P(...SPOT.helper);
+      hg.setPosition(hx, hy);
+      this.helperG = hg;
+      this.helperRing = this.add.graphics().setDepth(59);
+    }
     drawCounter(this, tankTop);
     this.nozzle = P(...SPOT.nozzle);
     this.dyn = this.add.graphics().setDepth(3);
@@ -184,7 +195,10 @@ export class GameScene extends Phaser.Scene {
     entries.forEach(([key, n], i) => {
       const row = Math.floor(i / cols), inRow = Math.min(cols, entries.length - row * cols);
       const ix = (i % cols - (inRow - 1) / 2) * CW, iy = -h + 5 + CH / 2 + row * CH;
-      drawItem(g, ITEM(key), ix - 2, iy - 2, 12);
+      if (key === 'digit' && cust.age) {
+        // день народження: велика золота цифра віку
+        b.add(this.add.text(ix - 1, iy - 1, String(cust.age), txt(30, 0xffc21a, { stroke: '#b37400', strokeThickness: 5 })).setOrigin(0.5));
+      } else drawItem(g, ITEM(key), ix - 2, iy - 2, 12);
       if (n > 1) {
         g.fillStyle(C.magenta, 1).fillCircle(ix + 11, iy + 10, 9);
         b.add(this.add.text(ix + 11, iy + 10, String(n), txt(13, C.white)).setOrigin(0.5));
@@ -338,6 +352,7 @@ export class GameScene extends Phaser.Scene {
         const back = { ...s.stock };
         if (s.nozzle) back[s.nozzle.key]++;
         for (const b of s.bundle) back[b.key]++;
+        if (s.helper && s.helper.taken) for (const k of s.helper.taken) back[k]++;
         const sum = summarize(CONFIG, s.stats, this.run.money);
         const run = endDay(this.run, sum, back);
         this.registry.set('run', run);
@@ -402,19 +417,35 @@ export class GameScene extends Phaser.Scene {
       this.stars.fillStyle(i < Math.round(rating) ? 0xffc21a : 0xe6dcea, 1).fillPoints(pts, true);
     }
 
+    // помічник працює — кружечок прогресу над головою
+    if (this.helperRing) {
+      const hr = this.helperRing.clear(), hp = s.helper;
+      const [hx, hy] = P(...SPOT.helper);
+      this.helperG.y = hy + (hp.cust ? -Math.abs(Math.sin(this.time.now / 110)) * 3 : 0);
+      if (hp.cust) {
+        const k = Math.min(1, (s.t - hp.startAt) / CONFIG.helper.serveSec);
+        hr.fillStyle(C.white, 0.95).fillCircle(hx, hy - 178, 16).lineStyle(6, 0x4f8dff, 1).beginPath()
+          .arc(hx, hy - 178, 11, -Math.PI / 2, -Math.PI / 2 + k * Math.PI * 2, false).strokePath();
+      }
+    }
+
     // терпіння і підсвітка готового замовлення
     let readyFor = false;
     for (const v of this.people.values()) {
       if (v.slot < 0 || !v.bubble.visible) { v.bar.clear(); continue; }
       const c = v.cust;
-      const pat = c.noStock ? CONFIG.customers.noStockLeaveSec : CONFIG.customers.patienceSec;
+      const pat = c.noStock ? CONFIG.customers.noStockLeaveSec : s.p.patienceSec;
       const start = c.noStock ? c.leaveAt - pat : c.seatedAt;
-      const f = Math.max(0, 1 - (s.t - start) / pat);
-      const col = f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red;
-      v.bubble.angle = f < 0.25 && !c.noStock ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
+      let f = Math.max(0, 1 - (s.t - start) / pat);
+      let col = f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red;
+      if (c.helper && s.helper && s.helper.cust === c) {
+        // його обслуговує помічник — синя смужка росте
+        f = Math.min(1, (s.t - s.helper.startAt) / CONFIG.helper.serveSec); col = 0x4f8dff;
+      }
+      v.bubble.angle = f < 0.25 && !c.noStock && !c.helper ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
-      if (s.bundle.length && !c.noStock && bundleCovers(c.order, s.bundle)) {
+      if (s.bundle.length && !c.noStock && !c.helper && bundleCovers(c.order, s.bundle)) {
         v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
         readyFor = true;
       }
