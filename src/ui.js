@@ -14,6 +14,7 @@ export function shade(color, k) {
 
 // Фон: вертикальний градієнт смугами (працює і в Canvas, і в WebGL)
 export function backdrop(scene, top = 0xffd9ef, bottom = 0xfff4fa) {
+  sfx.musicSet('menu');   // меню — спокійніша музика
   const g = scene.add.graphics().setDepth(-10);
   const a = Col().IntegerToColor(top), b = Col().IntegerToColor(bottom), n = 40;
   for (let i = 0; i < n; i++) {
@@ -147,29 +148,42 @@ export function upIcon(g, id, x, y, s = 30) {
 }
 
 // Кнопка звуку: динамік із хвильками або з хрестиком
-export function soundToggle(scene, x, y, depth = 150) {
-  const g = scene.add.graphics();
-  const draw = () => {
-    const m = sfx.isMuted();
-    g.clear().fillStyle(0x3a1f45, 0.2).fillCircle(0, 4, 28).fillStyle(C.white, 1).fillCircle(0, 0, 28);
-    g.fillStyle(m ? C.greyDark : C.purple, 1).fillRect(-13, -6, 8, 12).fillTriangle(-6, -6, -6, 6, 5, 0).fillTriangle(-6, -6, 5, -14, 5, 0).fillTriangle(-6, 6, 5, 14, 5, 0);
-    if (m) {
-      g.lineStyle(3, C.red, 1).lineBetween(9, -6, 19, 6).lineBetween(19, -6, 9, 6);
-    } else {
-      g.lineStyle(3, C.purple, 1);
+export function soundToggle(scene, x, y, depth = 150, dx = 68) {
+  // дві кнопки: звуки і музика (друга — зі зсувом dx)
+  const make = (bx, isMuted, setMuted, icon) => {
+    const g = scene.add.graphics();
+    const draw = () => {
+      const m = isMuted();
+      g.clear().fillStyle(0x3a1f45, 0.2).fillCircle(0, 4, 28).fillStyle(C.white, 1).fillCircle(0, 0, 28);
+      icon(g, m ? C.greyDark : C.purple, m);
+      if (m) g.lineStyle(4, C.red, 1).lineBetween(-17, 17, 17, -17);
+    };
+    draw();
+    const box = scene.add.container(bx, y, [g]).setSize(64, 64).setDepth(depth).setInteractive({ useHandCursor: true });
+    box.on('pointerdown', () => {
+      setMuted(!isMuted());
+      sfx.click();
+      draw();
+      scene.tweens.add({ targets: box, scale: 0.88, duration: 70, yoyo: true });
+    });
+    return box;
+  };
+  const speaker = (g, col, m) => {
+    g.fillStyle(col, 1).fillRect(-13, -6, 8, 12).fillTriangle(-6, -6, -6, 6, 5, 0).fillTriangle(-6, -6, 5, -14, 5, 0).fillTriangle(-6, 6, 5, 14, 5, 0);
+    if (!m) {
+      g.lineStyle(3, col, 1);
       g.beginPath(); g.arc(5, 0, 9, -0.9, 0.9); g.strokePath();
       g.beginPath(); g.arc(5, 0, 15, -0.9, 0.9); g.strokePath();
     }
   };
-  draw();
-  const box = scene.add.container(x, y, [g]).setSize(64, 64).setDepth(depth).setInteractive({ useHandCursor: true });
-  box.on('pointerdown', () => {
-    sfx.setMuted(!sfx.isMuted());
-    sfx.click();
-    draw();
-    scene.tweens.add({ targets: box, scale: 0.88, duration: 70, yoyo: true });
-  });
-  return box;
+  const musicNote = (g, col) => {
+    g.fillStyle(col, 1).fillEllipse(-8, 9, 13, 10).fillEllipse(9, 5, 13, 10);
+    g.fillRect(-3, -13, 4, 22).fillRect(14, -17, 4, 22);
+    g.fillPoints([{ x: -3, y: -13 }, { x: 18, y: -17 }, { x: 18, y: -11 }, { x: -3, y: -7 }], true);
+  };
+  const a = make(x, sfx.isMuted, sfx.setMuted, speaker);
+  make(x + dx, sfx.isMusicMuted, sfx.setMusicMuted, musicNote);
+  return a;
 }
 
 // Дощ конфеті
