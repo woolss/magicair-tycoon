@@ -17,7 +17,7 @@ const pickOne = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 
 // Що дають куплені апгрейди: насос, потік клієнтів, балон, відкриті товари
 export function deriveParams(cfg, owned = []) {
-  let pump = 0, flow = 1, tank = cfg.helium.tank, online = false;
+  let pump = 0, flow = 1, tank = cfg.helium.tank, online = false, shop = false, helper = false, birthday = cfg.orders.birthdayChance;
   const unlocked = new Set();
   for (const u of cfg.upgrades) {
     if (!owned.includes(u.id)) continue;
@@ -27,6 +27,9 @@ export function deriveParams(cfg, owned = []) {
     if (e.tank) tank = Math.max(tank, e.tank);
     if (e.unlock) unlocked.add(e.unlock);
     if (e.online) online = true;
+    if (e.shop) shop = true;
+    if (e.helper) helper = true;
+    if (e.birthday) birthday = e.birthday;
   }
   const open = Object.keys(cfg.items).filter((k) => {
     const u = cfg.items[k].unlock;
@@ -35,11 +38,14 @@ export function deriveParams(cfg, owned = []) {
   const p = cfg.pumps[pump];
   return {
     pump, fullSec: p.fullSec, greenMin: cfg.inflate.greenMin, greenMax: p.greenMax,
-    gapSec: cfg.customers.baseGapSec / flow, tank, open, online,
+    gapSec: cfg.customers.baseGapSec / flow, tank, open, online, shop, helper, birthday,
+    patienceSec: shop ? cfg.shop.patienceSec : cfg.customers.patienceSec,
+    rent: shop ? cfg.shop.rent : cfg.rent,
+    salary: (cfg.salary || 0) + (helper ? cfg.helper.salary : 0),
   };
 }
 
-export function makeOrder(cfg, rng, open) {
+export function makeOrder(cfg, rng, open, birthday = cfg.orders.birthdayChance) {
   const o = cfg.orders;
   const has = (k) => open.includes(k);
   const latex = open.filter((k) => cfg.items[k].kind === 'latex');
@@ -52,6 +58,7 @@ export function makeOrder(cfg, rng, open) {
     const m = randInt(rng, 1, 2);
     for (let i = 0; i < m; i++) add(pickOne(rng, ['heart', 'star']), 1);
   }
+  if (has('digit') && rng() < birthday) add('digit', 1);   // день народження
   return order;
 }
 
@@ -109,8 +116,8 @@ export function starsFor(cfg, served, lost) {
 // Підсумок дня. Кульки вже оплачені на закупівлі — тут лише гроші дня.
 export function summarize(cfg, st, moneyBefore) {
   const helium = heliumCost(cfg, st.heliumUsed);
-  const rent = cfg.rent;
-  const salary = cfg.salary || 0;
+  const rent = st.rent ?? cfg.rent;
+  const salary = st.salary ?? (cfg.salary || 0);
   const profit = st.revenue + st.tips - helium - rent - salary;
   const moneyAfter = Math.max(0, moneyBefore + profit); // каса не нижче 0
   return {
@@ -141,7 +148,9 @@ export class Shift {
     this.helium = this.p.tank;
     this.refillLeft = 0;
     this.events = [];
-    this.stats = { revenue: 0, tips: 0, served: 0, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 0, onlineDone: 0, onlineMissed: 0 };
+    this.stats = { revenue: 0, tips: 0, served: 0, lost: 0, popped: 0, poppedValue: 0, heliumUsed: 0, onlineDone: 0, onlineMissed: 0,
+      rent: this.p.rent, salary: this.p.salary, helperServed: 0 };
+    this.helper = this.p.helper ? { cust: null, doneAt: 0, taken: null } : null;  // другий продавець
     this.online = null;        // поточне онлайн-замовлення {id, order, at, deadline} — лише одне
     this.nextOnline = this.p.online ? cfg.online.firstAtSec : Infinity;
   }
@@ -178,7 +187,8 @@ export class Shift {
 
     // Прихід клієнтів: на вільне місце, інакше в чергу, інакше пройшов повз
     while (this.t >= this.nextArrival && this.nextArrival < this.duration) {
-      const cust = { id: this.nextId++, order: makeOrder(c, this.rng, this.p.open), arrivedAt: this.nextArrival };
+      const cust = { id: this.nextId++, order: makeOrder(c, this.rng, this.p.open, this.p.birthday), arrivedAt: this.nextArrival };
+      if (cust.order.digit) cust.age = 1 + Math.floor(this.rng() * 9);   // яку цифру намалювати
       const slot = this.customers.indexOf(null);
       if (slot >= 0) this.seat(slot, cust);
       else if (this.queue.length < c.customers.queueMax) { this.queue.push(cust); this.emit('queue'); }
@@ -189,7 +199,8 @@ export class Shift {
     for (let i = 0; i < this.customers.length; i++) {
       const cust = this.customers[i];
       if (!cust) continue;
-      const gone = cust.noStock ? this.t >= cust.leaveAt : this.t - cust.seatedAt >= c.customers.patienceSec;
+      if (cust.helper) continue;   // його вже обслуговує помічник
+      const gone = cust.noStock ? this.t >= cust.leaveAt : this.t - cust.seatedAt >= this.p.patienceSec;
       if (gone) {
         this.customers[i] = null;
         this.stats.lost++;
@@ -203,6 +214,34 @@ export class Shift {
     // Черга заходить на вільні місця
     for (let i = 0; i < this.customers.length && this.queue.length; i++) {
       if (!this.customers[i]) { this.seat(i, this.queue.shift()); this.emit('queue'); }
+    }
+
+    // Другий продавець: бере найстаршого клієнта з простим замовленням і за serveSec віддає сам
+    const hp = this.helper;
+    if (hp && hp.cust && this.t >= hp.doneAt) {
+      const cust = hp.cust, slot = this.customers.indexOf(cust);
+      const value = hp.taken.reduce((s, k) => s + c.items[k].sell, 0);
+      hp.cust = null; hp.taken = null;
+      if (slot >= 0) {
+        this.customers[slot] = null;
+        this.stats.revenue += value; this.stats.served++; this.stats.helperServed++;
+        this.emit('sale', { slot, id: cust.id, order: cust.order, value, tip: 0, helper: true });
+      }
+    }
+    if (hp && !hp.cust) {
+      const simple = (o) => Object.entries(o).every(([k, n]) => c.items[k].kind === 'latex' && n <= c.helper.maxBalloons)
+        && Object.values(o).reduce((a, b) => a + b, 0) <= c.helper.maxBalloons;
+      const cust = this.customers.filter((x) => x && !x.noStock && !x.helper && simple(x.order)
+        && Object.entries(x.order).every(([k, n]) => this.stock[k] >= n)).sort((a, b) => a.seatedAt - b.seatedAt)[0];
+      if (cust) {
+        cust.helper = true;
+        hp.cust = cust; hp.doneAt = this.t + c.helper.serveSec; hp.startAt = this.t;
+        hp.taken = Object.entries(cust.order).flatMap(([k, n]) => Array(n).fill(k));
+        for (const k of hp.taken) this.stock[k]--;                 // бере товар зі складу одразу
+        this.stats.heliumUsed += hp.taken.length;                   // гелій зі спільного балона
+        this.helium = Math.max(0, this.helium - hp.taken.length);
+        this.emit('helperTake', { id: cust.id });
+      }
     }
 
     // Онлайн-замовлення: одне за раз; не встиг — скасовується
@@ -362,7 +401,7 @@ export class Shift {
   // Тап по клієнту — віддати зв'язку
   give(slot) {
     const cust = this.customers[slot];
-    if (this.over || !cust || !this.bundle.length) return null;
+    if (this.over || !cust || !this.bundle.length || cust.helper) return null;
     if (!bundleCovers(cust.order, this.bundle)) {
       this.emit('mismatch', { slot });
       return null;
