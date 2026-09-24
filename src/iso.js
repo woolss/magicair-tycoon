@@ -45,15 +45,21 @@ export const SPOT = {
   courier: [11.5, 2.8],       // кур'єр чекає праворуч від прилавка (службовий вхід)
   courierFrom: [16.5, 1.0],   // звідки приходить — з-за правого краю
   box: [10.6, 5.2, 2.0],      // коробка з онлайн-замовленням на краю прилавка
+  helper: [7.8, 3.5],         // другий продавець — за прилавком, ближче до каси
 };
 
-// Підлога, стіни, декор, полиці, балони — все, що позаду продавця
-export function drawRoom(scene) {
+// Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
+export function drawRoom(scene, rich = false) {
   const g = scene.add.graphics().setDepth(0);
   const R = 13, WH = 6, F = 19;
-  quad(g, 0xf4cfa6, 1, [0, 0, 0], [F, 0, 0], [F, F, 0], [0, F, 0]);
-  g.lineStyle(1.5, 0xe2b384, 1);
-  for (let i = 1; i < F; i++) g.lineBetween(...P(i, 0), ...P(i, F));
+  if (rich) {
+    // плитка «шахи» рожева з білим
+    for (let i = 0; i < F; i++) for (let j = 0; j < F; j++) quad(g, (i + j) % 2 ? 0xffe3f1 : 0xfffafd, 1, [i, j, 0], [i + 1, j, 0], [i + 1, j + 1, 0], [i, j + 1, 0]);
+  } else {
+    quad(g, 0xf4cfa6, 1, [0, 0, 0], [F, 0, 0], [F, F, 0], [0, F, 0]);
+    g.lineStyle(1.5, 0xe2b384, 1);
+    for (let i = 1; i < F; i++) g.lineBetween(...P(i, 0), ...P(i, F));
+  }
   quad(g, 0xffd3ec, 1, [0.4, 7.6, 0], [9.5, 7.6, 0], [9.5, 9.4, 0], [0.4, 9.4, 0]);
   // стіни
   quad(g, 0xcdb6f2, 1, [0, 0, 0], [0, R, 0], [0, R, WH], [0, 0, WH]);
@@ -82,10 +88,11 @@ export function drawRoom(scene) {
   quad(g, 0xffe07a, 1, [0, 5.55, 2.55], [0, 6.65, 2.55], [0, 6.65, 3.85], [0, 5.55, 3.85]);
   { const [x, y] = P(0, 6.1, 3.2); drawBalloon(g, x - 9, y, 9, 0xff5fb8); drawBalloon(g, x + 8, y - 5, 9, 0x4fa3ff); }
   // полиці з кульками за продавцем
-  for (const z of [2.1, 3.2]) box(g, [1.4, 7.4, 0, 0.8, z, z + 0.16], 0xfff4fa, 0xe8c9dc, 0xf3d7e8);
+  const shelves = [2.1, 3.2];
+  for (const z of shelves) box(g, [1.4, 7.4, 0, 0.8, z, z + 0.16], 0xfff4fa, 0xe8c9dc, 0xf3d7e8);
   const heart = { kind: 'heart', color: 0xff3b6b }, star = { kind: 'star', color: 0xffc21a };
   const cols = [0xff5fb8, 0x4fa3ff, 0xffc933, 0xb338b5, 0x3ccf6e];
-  [[2.1, 0], [3.2, 1]].forEach(([z, row]) => {
+  shelves.map((z, row) => [z, row]).forEach(([z, row]) => {
     for (let i = 0; i < 6; i++) {
       const [x, y] = P(1.9 + i * 1.0, 0.4, z + 0.16);
       if (row === 1 && i % 3 === 1) drawItem(g, heart, x, y - 15, 14);
@@ -95,18 +102,30 @@ export function drawRoom(scene) {
   });
   // неонова вивіска на рожевій стіні: текст зі зсувом під кут стіни (як намальований на ній)
   const [sx, sy] = P(3.4, 0, 5.0);
-  if (!scene.textures.exists('neon')) {
-    const tex = scene.textures.createCanvas('neon', 440, 330);
+  const neon = rich ? 'neon2' : 'neon';
+  if (!scene.textures.exists(neon)) {
+    const tex = scene.textures.createCanvas(neon, 440, 330);
     const ctx = tex.getContext();
     ctx.setTransform(1, Math.tan(Math.PI / 6), 0, 1, 0, 0);
     ctx.font = '900 60px Nunito, Arial, sans-serif';
     ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff';
-    ctx.shadowColor = '#ff5fe0'; ctx.shadowBlur = 16;
+    ctx.shadowColor = '#ff5fe0'; ctx.shadowBlur = rich ? 26 : 16;   // у магазині неон яскравіший
     ctx.fillStyle = '#ff5fe0';
     ctx.fillText('MagicAir', 10, 80); ctx.strokeText('MagicAir', 10, 80); ctx.fillText('MagicAir', 10, 80);
     tex.refresh();
   }
-  scene.add.image(sx - 10, sy - 80, 'neon').setOrigin(0, 0).setDepth(0);
+  scene.add.image(sx - 10, sy - 80, neon).setOrigin(0, 0).setDepth(0);
+  if (rich) {
+    // арка з кульок над дверима і гірлянда-вогники вздовж рожевої стіни
+    for (let i = 0; i <= 12; i++) {
+      const a = (i / 12) * Math.PI, [x, y] = P(0, 8.5 + Math.cos(a) * 1.5, 4.3 + Math.sin(a) * 1.3);
+      drawBalloon(g, x, y, 10, [C.magenta, 0xffffff, C.purple, 0xffc933][i % 4]);
+    }
+    for (let i = 0; i < 16; i++) {
+      const [x, y] = P(0.4 + i * 0.8, 0, 5.75 - (i % 2) * 0.12);
+      g.fillStyle([0xffe066, 0xff9df0, 0x9fe3ff][i % 3], 1).fillCircle(x, y, 5);
+    }
+  }
   // балони з гелієм
   cyl(g, 0.8, 1.3, 0.5, 3.0, 0x4f8dff, 0x7fb0ff);
   const tankTop = cyl(g, SPOT.tank[0], SPOT.tank[1], 0.5, 3.0, 0x4f8dff, 0x7fb0ff);

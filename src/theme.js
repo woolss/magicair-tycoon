@@ -76,5 +76,13 @@ export function drawItem(g, item, x, y, r, alpha = 1) {
     g.fillStyle(0xffffff, 0.45 * alpha).fillPoints(starPoints(x - r * 0.12, y - r * 0.12, r * 0.45, 0.5), true);
     return;
   }
+  if (item.kind === 'digit') {
+    // фольгована цифра: товстий золотий «7» з темнішим контуром
+    const pts = [[x - r * 0.55, y - r * 0.85], [x + r * 0.6, y - r * 0.85], [x - r * 0.15, y + r * 1.0]];
+    const line = (w, col) => { g.lineStyle(w, col, alpha).beginPath().moveTo(...pts[0]).lineTo(...pts[1]).lineTo(...pts[2]).strokePath(); };
+    line(r * 0.72, 0xd99a00); line(r * 0.5, item.color);
+    g.fillStyle(0xffffff, 0.55 * alpha).fillCircle(x - r * 0.4, y - r * 0.85, r * 0.12);
+    return;
+  }
   drawBalloon(g, x, y, r, item.color, alpha);
 }
