@@ -54,8 +54,10 @@ export class StartScene extends Phaser.Scene {
     const btnY = top + steps.length * rowH + 110;
 
     if (saved) {
-      // продовження — спершу підготовка (склад і апгрейди), а не одразу зміна
-      button(this, W / 2, btnY, 520, 110, t('cont', { n: saved.day }), () => { this.registry.set('run', saved); this.scene.start('shop'); });
+      // продовження після зіграних змін — спершу підготовка (склад і апгрейди); якщо ще жодної — одразу зміна
+      button(this, W / 2, btnY, 520, 110, t('cont', { n: saved.day }), () => {
+        if (saved.day > 1) { this.registry.set('run', saved); this.scene.start('shop'); } else start(saved);
+      });
       // нова гра стирає прогрес — питаємо вдруге прямо на кнопці
       let sure = false;
       const again = button(this, W / 2, btnY + 130, 420, 84, t('newGame'), () => {
