@@ -12,6 +12,7 @@ export class StartScene extends Phaser.Scene {
 
   create() {
     backdrop(this);
+    this.cameras.main.fadeIn(300, 255, 244, 250);
     floaters(this, 6, 0.25);
 
     const knot = this.add.container(W / 2, 400);

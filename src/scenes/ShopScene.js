@@ -51,7 +51,7 @@ export class ShopScene extends Phaser.Scene {
       saveRun(this.run);
       this.scene.start('game');
     });
-    soundToggle(this, W - 60, 1180 - 120);
+    soundToggle(this, W - 60, 1180 - 120, 150, -68);
 
     this.render();
   }

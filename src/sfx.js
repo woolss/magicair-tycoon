@@ -1,9 +1,9 @@
 // Звуки гри — синтез на WebAudio, без файлів. Вимкнення звуку пам'ятаємо в браузері.
-const KEY = 'magicair-sound';
-const VOL = 0.6;
-let ctx = null, master = null, noiseBuf = null, hiss = null;
-let muted = false;
-try { muted = localStorage.getItem(KEY) === 'off'; } catch (_) { /* нема сховища */ }
+const KEY = 'magicair-sound', MKEY = 'magicair-music';
+const VOL = 0.6, MVOL = 0.22;
+let ctx = null, master = null, musicBus = null, noiseBuf = null, hiss = null;
+let muted = false, musicMuted = false;
+try { muted = localStorage.getItem(KEY) === 'off'; musicMuted = localStorage.getItem(MKEY) === 'off'; } catch (_) { /* нема сховища */ }
 
 function ac() {
   if (!ctx) {
@@ -13,19 +13,28 @@ function ac() {
     master = ctx.createGain();
     master.gain.value = muted ? 0 : VOL;
     master.connect(ctx.destination);
+    musicBus = ctx.createGain();
+    musicBus.gain.value = musicMuted ? 0 : MVOL;
+    musicBus.connect(ctx.destination);
   }
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
 }
 
 // Браузер дозволяє звук лише після дотику — викликаємо на кожен дотик
-export function unlock() { ac(); }
+export function unlock() { if (ac() && !musicTimer) musicStart(); }
 export const isMuted = () => muted;
 export function setMuted(m) {
   muted = m;
   try { localStorage.setItem(KEY, m ? 'off' : 'on'); } catch (_) { /* нема сховища */ }
   if (m) inflateStop();
   if (master) master.gain.setTargetAtTime(m ? 0 : VOL, ctx.currentTime, 0.02);
+}
+export const isMusicMuted = () => musicMuted;
+export function setMusicMuted(m) {
+  musicMuted = m;
+  try { localStorage.setItem(MKEY, m ? 'off' : 'on'); } catch (_) { /* нема сховища */ }
+  if (musicBus) musicBus.gain.setTargetAtTime(m ? 0 : MVOL, ctx.currentTime, 0.1);
 }
 
 function tone({ f = 440, f2, type = 'sine', dur = 0.15, vol = 0.2, at = 0 }) {
@@ -140,3 +149,68 @@ export const buy = () => { coin(); tone({ f: 2349, type: 'triangle', dur: 0.25, 
 export const phone = () => [0, 0.16, 0.5, 0.66].forEach((at) => { tone({ f: 1320, type: 'square', dur: 0.1, vol: 0.05, at }); tone({ f: 1760, type: 'square', dur: 0.1, vol: 0.04, at: at + 0.05 }); });
 export const pack = () => { noise({ dur: 0.12, vol: 0.3, freq: 500, type: 'lowpass' }); tone({ f: 660, f2: 990, type: 'triangle', dur: 0.12, vol: 0.12, at: 0.08 }); };
 export const upgrade = () => [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ f, type: 'triangle', dur: i === 4 ? 0.45 : 0.12, vol: 0.12, at: i * 0.08 }));
+
+// ---------- фонова музика: легкий луп I–V–vi–IV, синтез ----------
+// Ноти в півтонах від C4. Мелодія — пентатоніка, щоб будь-яке поєднання звучало мило.
+const BPM = 104, STEP = 60 / BPM / 2;                 // восьмі
+const CHORDS = [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]];   // C, G, Am, F
+const MELODY = [                                       // 16 восьмих на акорд; null — пауза
+  [12, null, 16, null, 19, null, 16, 14, 12, null, null, null, 9, null, 12, null],
+  [14, null, 11, null, 7, null, 11, 14, 19, null, null, null, 14, null, null, null],
+  [16, null, 12, null, 9, null, 12, 16, 21, null, 19, null, 16, null, null, null],
+  [14, null, 12, null, 9, null, 5, null, 7, null, 9, null, 12, null, 14, null],
+];
+const hz = (n) => 261.63 * Math.pow(2, n / 12);
+let musicTimer = null, musicStep = 0, nextAt = 0, musicMode = 'menu';
+
+function note(n, at, dur, { type = 'triangle', vol = 0.2, attack = 0.01 } = {}) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = hz(n);
+  g.gain.setValueAtTime(0, at);
+  g.gain.linearRampToValueAtTime(vol, at + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g).connect(musicBus);
+  o.start(at); o.stop(at + dur + 0.05);
+}
+
+function scheduleStep(i, at) {
+  const bar = Math.floor(i / 16) % 4, s = i % 16, ch = CHORDS[bar];
+  // бас: корінь на 1 і 3 долю, квінта між ними
+  if (s % 4 === 0) note(ch[0] - 12 - (ch[0] > -3 ? 12 : 0), at, STEP * 3, { type: 'sine', vol: 0.5 });
+  // м'які акорди-«пух» на початку такту й посередині
+  if (s === 0 || s === 8) ch.forEach((n) => note(n, at, STEP * 7, { type: 'sine', vol: 0.07, attack: 0.08 }));
+  // легкий «шейкер» на кожну восьму в грі
+  if (musicMode === 'game' && s % 2 === 1) {
+    const src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuffer(ctx); f.type = 'highpass'; f.frequency.value = 7000;
+    g.gain.setValueAtTime(0.05, at); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.04);
+    src.connect(f).connect(g).connect(musicBus); src.start(at); src.stop(at + 0.06);
+  }
+  // мелодія (у меню — через раз, спокійніше)
+  const m = MELODY[bar][s];
+  const round = Math.floor(i / 64);
+  if (m != null && (musicMode === 'game' || round % 2 === 0)) note(m, at, STEP * 1.8, { vol: 0.16 });
+}
+
+function musicTick() {
+  if (!ctx || ctx.state !== 'running') return;
+  if (nextAt < ctx.currentTime) nextAt = ctx.currentTime + 0.05;
+  while (nextAt < ctx.currentTime + 0.3) {
+    scheduleStep(musicStep++, nextAt);
+    nextAt += STEP;
+  }
+}
+
+function musicStart() {
+  if (musicTimer || !ctx) return;
+  musicTimer = setInterval(musicTick, 80);
+}
+
+// 'menu' — спокійніше, 'game' — з шейкером і повною мелодією
+export function musicSet(mode) { musicMode = mode; }
+
+// вкладку сховали — зупиняємо весь звук, повернулись — продовжуємо
+export function pause(hidden) {
+  if (!ctx) return;
+  if (hidden) { inflateStop(); ctx.suspend(); } else ctx.resume();
+}
