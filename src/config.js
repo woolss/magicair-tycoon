@@ -31,11 +31,11 @@ export const CONFIG = {
 
   // Надування: заповнення 0→1 за fullSec. Відпустив нижче greenMin — кулька чекає, можна додути;
   // [greenMin, greenMax] — ідеально; вище — лопнула.
-  // Насос швидший → зелена зона ширша, щоб «вікно» в секундах лишалось однаковим (≈0,5 с).
+  // Насос швидший → зелена зона ширша, щоб «вікно» в секундах лишалось однаковим (≈0,4 с).
   pumps: [
-    { fullSec: 2.4,  greenMax: 0.82 },   // насос I
-    { fullSec: 1.92, greenMax: 0.875 },  // насос II
-    { fullSec: 1.53, greenMax: 0.945 },  // насос III
+    { fullSec: 2.4,  greenMax: 0.767 },  // насос I
+    { fullSec: 1.92, greenMax: 0.808 },  // насос II
+    { fullSec: 1.53, greenMax: 0.861 },  // насос III
   ],
   inflate: { greenMin: 0.6, underSellMul: 0.6 },
 
