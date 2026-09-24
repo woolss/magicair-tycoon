@@ -46,7 +46,7 @@ export const SPOT = {
   courier: [11.5, 2.8],       // кур'єр чекає праворуч від прилавка (службовий вхід)
   courierFrom: [16.5, 1.0],   // звідки приходить — з-за правого краю
   box: [10.6, 5.2, 2.0],      // коробка з онлайн-замовленням на краю прилавка
-  helper: [7.8, 3.5],         // другий продавець — за прилавком, ближче до каси
+  helper: [7.1, 3.4],         // другий продавець — за прилавком, між продавцем і касою
 };
 
 // Арт-фони кімнати (1024×1536, ChatGPT). Координати нижче — у пікселях оригіналу.
@@ -54,11 +54,9 @@ export const ART = {
   k: 0.72, x: -8, y: 33,   // масштаб і зсув фону на екрані
   door: [0.3, 7.1],        // вхід для покупців — двері на фоні
   point: {
-    tank: [372, 578],   // шланг виходить з редуктора на підлозі біля балонів
     shelves: [[[565, 350], [880, 512], 6], [[560, 438], [880, 600], 6]],
   },
   shop: {
-    tank: [378, 578],
     shelves: [
       [[555, 282], [790, 398], 6], [[555, 370], [790, 485], 6], [[555, 455], [790, 570], 6],
       [[865, 458], [995, 525], 3], [[862, 548], [995, 615], 3], [[862, 640], [995, 705], 3],
@@ -66,6 +64,29 @@ export const ART = {
   },
 };
 const artAt = (px, py) => [ART.x + px * ART.k, ART.y + py * ART.k];
+
+// Арт-прилавок (кадр 1280×980 після обрізки): масштаб, передній-лівий нижній кут, верх сопла — у пікселях кадру.
+// at — куди на підлозі стає цей кут: на точці — як прилавок кодом; у магазині — ближче до стіни з вивіскою (закриває шланг на фоні).
+export const COUNTER_ART = { s: 0.38, w: 1280, h: 980, base: [21, 389], tip: [171, 7], top: 1.3, at: { point: [1.8, 5.9], shop: [1.8, 5.2] } };
+let counterFoot = COUNTER_ART.at.point;
+function counterAt(px, py) {
+  const [fx, fy] = P(...counterFoot, 0), { s, base } = COUNTER_ART;
+  return [fx + (px - base[0]) * s, fy + (py - base[1]) * s];
+}
+// Точка на екрані → (x, y, z) при заданому y у клітинках
+function unP(sx, sy, y) {
+  const x = (sx - ISO.OX) / (C30 * ISO.S) + y;
+  return [x, y, (ISO.OY + (x + y) * 0.5 * ISO.S - sy) / ISO.S];
+}
+// З арт-прилавком: сопло — його верх, товар лежить на нижчій стільниці; продавці зсуваються разом із прилавком (черга лишається)
+function useCounterArt(rich) {
+  counterFoot = rich ? COUNTER_ART.at.shop : COUNTER_ART.at.point;
+  const dy = counterFoot[1] - 5.9, z = COUNTER_ART.top, [tx, ty] = counterAt(...COUNTER_ART.tip);
+  Object.assign(SPOT, {
+    nozzle: unP(tx, ty + 22, 5.2 + dy), bundle: [4.0, 5.3 + dy, z], box: [8.2, 5.2 + dy, z],
+    seller: [5.0, 3.8 + dy], helper: [7.1, 3.8 + dy],
+  });
+}
 
 // Кімната з арт-фоном: фон + товар на його полицях + неон
 function drawArtRoom(scene, rich, key) {
@@ -84,7 +105,7 @@ function drawArtRoom(scene, rich, key) {
   });
   drawNeon(scene, rich);
   SPOT.door = ART.door;
-  return { g, tankTop: artAt(...A.tank) };
+  return { g, tankTop: null };   // шланг і сопло — частина арту прилавка
 }
 
 // Неонова вивіска на рожевій стіні: текст зі зсувом під кут стіни (як намальований на ній)
@@ -114,6 +135,7 @@ function drawNeon(scene, rich) {
 
 // Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
 export function drawRoom(scene, rich = false) {
+  if (scene.textures.exists('counter')) useCounterArt(rich);
   const key = rich ? 'bg-shop' : 'bg-point';
   if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key);
   const g = scene.add.graphics().setDepth(0);
@@ -186,20 +208,31 @@ export function drawRoom(scene, rich = false) {
 
 // Прилавок, каса, сопло зі шлангом — перед продавцем
 export function drawCounter(scene, tankTop) {
+  if (scene.textures.exists('counter')) {
+    const [x, y] = counterAt(0, 0), { s, w, h } = COUNTER_ART;
+    return scene.add.image(x, y, 'counter').setOrigin(0).setDisplaySize(w * s, h * s).setDepth(2);
+  }
   const g = scene.add.graphics().setDepth(2);
   box(g, [1.8, 11.2, 4.6, 5.9, 0, 2.0], 0xfff1f8, C.purple, 0x9a2c9c);
   quad(g, C.magenta, 1, [1.8, 5.9, 1.55], [11.2, 5.9, 1.55], [11.2, 5.9, 1.7], [1.8, 5.9, 1.7]);
   box(g, [8.6, 9.5, 4.8, 5.6, 2.0, 2.6], 0xe9e3f0, 0x6e6280, 0x8c809e);
   box(g, [8.7, 9.4, 4.85, 5.1, 2.6, 3.2], 0xbfe6ff, 0x4a3f5c, 0x5c506e);
   const [nx, ny] = P(...SPOT.nozzle);
-  const [tx, ty] = tankTop;
-  const low = ty > ny;   // арт-фон: шланг виходить з редуктора на підлозі, а не з верху балона
-  const hose = new Phaser.Curves.CubicBezier(
-    new Phaser.Math.Vector2(tx, ty), new Phaser.Math.Vector2(low ? tx - 4 : tx - 30, low ? ty + 8 : ty + 40),
-    new Phaser.Math.Vector2(low ? nx + 16 : nx - 40, low ? ny + 2 : ny - 10), new Phaser.Math.Vector2(nx - 4, ny - 8));
-  g.lineStyle(6, 0x5b5566, 1).strokePoints(hose.getPoints(24));
+  if (tankTop) {
+    const [tx, ty] = tankTop;
+    const hose = new Phaser.Curves.CubicBezier(
+      new Phaser.Math.Vector2(tx, ty), new Phaser.Math.Vector2(tx - 30, ty + 40),
+      new Phaser.Math.Vector2(nx - 40, ny - 10), new Phaser.Math.Vector2(nx - 4, ny - 8));
+    g.lineStyle(6, 0x5b5566, 1).strokePoints(hose.getPoints(24));
+  }
   g.fillStyle(0x7c8a99, 1).fillRoundedRect(nx - 8, ny - 22, 16, 22, 4);
   return g;
+}
+
+// Спрайт персонажа (арт), ноги в (0, 0). Немає текстури — null, тоді малюємо кодом.
+export function personSprite(scene, key) {
+  if (!scene.textures.exists(key)) return null;
+  return scene.add.image(0, 0, key).setOrigin(0.5, 0.95).setScale(0.85);
 }
 
 // Людина: ноги в (0, 0) контейнера. back — спиною до нас.
