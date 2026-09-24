@@ -5,6 +5,7 @@ import { StartScene } from './scenes/StartScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { SummaryScene } from './scenes/SummaryScene.js';
 import { ShopScene } from './scenes/ShopScene.js';
+import { EventScene } from './scenes/EventScene.js';
 import { unlock, pause, musicSet } from './sfx.js';
 
 // Параметри для тестів: ?shift=20 (секунд у зміні), ?seed=1, ?lang=ru
@@ -29,7 +30,7 @@ async function boot() {
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H },
     input: { activePointers: 2 },
     audio: { noAudio: true },   // свої звуки в sfx.js
-    scene: [SplashScene, StartScene, GameScene, SummaryScene, ShopScene],
+    scene: [SplashScene, StartScene, GameScene, SummaryScene, ShopScene, EventScene],
   });
   game.registry.set('opts', opts);
   // на зміні музика жвавіша (у меню її вмикає backdrop)
