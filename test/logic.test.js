@@ -322,19 +322,22 @@ test('цифри: день народження — звичайне замов�
   assert.ok(deriveParams(cfg, ['foil', 'shop', 'digits', 'ads']).birthday > 0.2);
 });
 
-test('другий продавець: сам віддає просте замовлення, зарплата +70', () => {
+test('другий продавець: сам віддає замовлення до 3 кульок будь-якого типу, зарплата помічника', () => {
   const s = shift(6, { owned: ['foil', 'shop', 'helper'] });
   assert.equal(s.stats.salary, cfg.salary + cfg.helper.salary);
   s.nextArrival = Infinity;
-  s.customers[0] = { id: 90, order: { pink: 1, blue: 1 }, arrivedAt: 0, seatedAt: 0, slot: 0 };
-  s.customers[1] = { id: 91, order: { heart: 1 }, arrivedAt: 0, seatedAt: 0, slot: 1 };
-  const pink = s.stock.pink;
+  s.customers[0] = { id: 90, order: { pink: 1, blue: 1, heart: 1 }, arrivedAt: 0, seatedAt: 0, slot: 0 };
+  s.customers[1] = { id: 91, order: { pink: 2, star: 2 }, arrivedAt: 0, seatedAt: 0, slot: 1 };
+  const pink = s.stock.pink, heart = s.stock.heart;
   s.update(0.1);
-  assert.ok(s.customers[0].helper);                     // простий — бере помічник
-  assert.ok(!s.customers[1].helper);                    // фольга — не бере
+  assert.ok(s.customers[0].helper);                     // 3 кульки, з фольгою — бере помічник
   assert.equal(s.stock.pink, pink - 1);
+  assert.equal(s.stock.heart, heart - 1);
+  assert.equal(s.stats.heliumUsed, 1 + 1 + cfg.items.heart.helium);   // фольга бере більше гелію
   s.update(cfg.helper.serveSec);
   assert.equal(s.customers[0], null);
   assert.equal(s.stats.helperServed, 1);
-  assert.equal(s.stats.revenue, 30);
+  assert.equal(s.stats.revenue, 2 * cfg.items.pink.sell + cfg.items.heart.sell);
+  s.update(0.1);
+  assert.ok(!s.customers[1].helper);                    // 4 кульки — не бере
 });

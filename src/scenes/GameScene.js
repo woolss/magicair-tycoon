@@ -475,10 +475,12 @@ export class GameScene extends Phaser.Scene {
       const start = c.noStock ? c.leaveAt - pat : c.seatedAt;
       let f = Math.max(0, 1 - (s.t - start) / pat);
       let col = f > 0.5 ? C.green : f > 0.25 ? C.gold : C.red;
-      if (c.helper && s.helper && s.helper.cust === c) {
+      const byHelper = !!(c.helper && s.helper && s.helper.cust === c);
+      if (byHelper) {
         // його обслуговує помічник — синя смужка росте
         f = Math.min(1, (s.t - s.helper.startAt) / CONFIG.helper.serveSec); col = 0x4f8dff;
       }
+      v.bubble.setAlpha(byHelper ? 0.4 : 1);   // чуже замовлення — бліде, щоб не робити його вдруге
       v.bubble.angle = f < 0.25 && !c.noStock && !c.helper ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
@@ -488,6 +490,15 @@ export class GameScene extends Phaser.Scene {
       }
       v.bar.fillStyle(C.white, 0.9).fillRoundedRect(-36, top - 16, 72, 9, 4.5)
         .fillStyle(col, 1).fillRoundedRect(-36, top - 16, Math.max(9, 72 * f), 9, 4.5);
+      if (byHelper) {
+        // значок-обличчя помічника в кутку хмаринки: «це моє»
+        const bx = w / 2 - 2, by = top + 4;
+        v.bar.fillStyle(0x4f8dff, 1).fillCircle(bx, by, 17).fillStyle(C.white, 1).fillCircle(bx, by, 14);
+        v.bar.fillStyle(HELPER.skin, 1).fillCircle(bx, by + 2, 10);
+        v.bar.fillStyle(HELPER.hair, 1).slice(bx, by + 1, 11, Math.PI, 0, false).fillPath()
+          .fillRect(bx - 11, by + 1, 3, 8).fillRect(bx + 8, by + 1, 3, 8);
+        v.bar.fillStyle(0x2b1a30, 1).fillCircle(bx - 3.5, by + 3, 1.6).fillCircle(bx + 3.5, by + 3, 1.6);
+      }
     }
 
     // кулька на соплі
