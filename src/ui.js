@@ -115,6 +115,28 @@ export function upIcon(g, id, x, y, s = 30) {
     g.fillStyle(C.green, 1).fillCircle(x + s * 0.45, y - s * 0.72, s * 0.2);
     return;
   }
+  if (id === 'shop') {
+    // вітрина магазину з навісом
+    g.fillStyle(0xffffff, 1).fillRect(x - s * 0.8, y - s * 0.3, s * 1.6, s * 1.0);
+    g.fillStyle(0xaee0ff, 1).fillRect(x - s * 0.62, y - s * 0.12, s * 0.62, s * 0.62).fillRect(x + s * 0.12, y - s * 0.12, s * 0.5, s * 0.82);
+    for (let i = 0; i < 4; i++) g.fillStyle(i % 2 ? 0xffffff : C.magenta, 1).fillRect(x - s * 0.9 + i * s * 0.45, y - s * 0.7, s * 0.45, s * 0.4);
+    return;
+  }
+  if (id === 'digits') { drawItem(g, CONFIG.items.digit, x, y, s * 0.72); return; }
+  if (id === 'helper') {
+    g.fillStyle(0xf6c9a8, 1).fillCircle(x, y - s * 0.45, s * 0.34);
+    g.fillStyle(0x2b1a12, 1).slice(x, y - s * 0.48, s * 0.36, Math.PI, 0, false).fillPath();
+    g.fillStyle(C.purple, 1).fillRoundedRect(x - s * 0.55, y - s * 0.08, s * 1.1, s * 0.85, s * 0.3);
+    g.fillStyle(C.green, 1).fillCircle(x + s * 0.6, y - s * 0.6, s * 0.22);
+    return;
+  }
+  if (id === 'ads') {
+    // рупор
+    g.fillStyle(C.magenta, 1).fillTriangle(x - s * 0.5, y - s * 0.18, x + s * 0.55, y - s * 0.62, x + s * 0.55, y + s * 0.62);
+    g.fillStyle(C.magenta, 1).fillRoundedRect(x - s * 0.75, y - s * 0.22, s * 0.35, s * 0.44, s * 0.08);
+    g.lineStyle(3, C.gold, 1).lineBetween(x + s * 0.75, y - s * 0.4, x + s * 0.95, y - s * 0.55).lineBetween(x + s * 0.8, y, x + s * 1.02, y).lineBetween(x + s * 0.75, y + s * 0.4, x + s * 0.95, y + s * 0.55);
+    return;
+  }
   if (id === 'tank200') {
     g.fillStyle(0x3f73e0, 1).fillRoundedRect(x - s * 0.42, y - s * 0.6, s * 0.84, s * 1.4, s * 0.38);
     g.fillStyle(0x7fa8ff, 1).fillRoundedRect(x - s * 0.28, y - s * 0.45, s * 0.18, s * 1.05, s * 0.09);
