@@ -3,11 +3,18 @@ import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
-import { P, SPOT, drawRoom, drawCounter, drawPerson, lookFor } from '../iso.js';
+import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
 
 const ITEM = (k) => CONFIG.items[k];
+// Арт-спрайти намальовані в 3/4: обличчям — дивляться вліво, спиною — вправо-вгору (на прилавок).
+// Коли людина йде в інший бік екрана — віддзеркалюємо. sdx — куди рух по екрану (+ праворуч).
+function flipArt(p, moving, sdx) {
+  if (!p.front.setFlipX) return;
+  p.front.setFlipX(moving && sdx > 0);
+  p.back.setFlipX(moving && sdx < 0);
+}
 const BTN = { x: 606, y: 1168, r: 84 };        // кнопка «Тримай / Зав'язати»
 const TRASH = { x: 458, y: 1168, r: 40 };      // кнопка «скинути зв'язку»
 const PANEL = { y: 1064, h: 208 };             // нижня панель
@@ -55,14 +62,19 @@ export class GameScene extends Phaser.Scene {
 
     // Сцена: зал → продавець → прилавок → кулька/зв'язка → люди → інтерфейс
     const { tankTop } = drawRoom(this, this.shift.p.shop);
-    const seller = this.add.graphics().setDepth(1);
-    drawPerson(seller, SELLER, false);
     const [sx, sy] = P(...SPOT.seller);
-    seller.setPosition(sx, sy);
-    this.add.text(sx, sy - 64, 'MagicAir', txt(10, C.white)).setOrigin(0.5).setDepth(1);
+    const seller = personSprite(this, 'ch-seller');
+    if (seller) seller.setPosition(sx, sy).setDepth(1);
+    else {
+      const g = this.add.graphics().setDepth(1);
+      drawPerson(g, SELLER, false);
+      g.setPosition(sx, sy);
+      this.add.text(sx, sy - 64, 'MagicAir', txt(10, C.white)).setOrigin(0.5).setDepth(1);
+    }
     if (this.shift.helper) {
-      const hg = this.add.graphics().setDepth(1);
-      drawPerson(hg, HELPER, false);
+      let hg = personSprite(this, 'ch-helper');
+      if (hg) hg.setDepth(1);
+      else { hg = this.add.graphics().setDepth(1); drawPerson(hg, HELPER, false); }
       const [hx, hy] = P(...SPOT.helper);
       hg.setPosition(hx, hy);
       this.helperG = hg;
@@ -203,8 +215,9 @@ export class GameScene extends Phaser.Scene {
   spawn(cust) {
     const look = lookFor(cust.id);
     const c = this.add.container(0, 0);
-    const front = this.add.graphics(); drawPerson(front, look, false);
-    const back = this.add.graphics(); drawPerson(back, look, true);
+    const skin = `ch-c${1 + (cust.id % 6)}`;   // арт-покупець: обличчям і спиною (…b)
+    let front = personSprite(this, skin), back = personSprite(this, skin + 'b') || personSprite(this, skin);
+    if (!front) { front = this.add.graphics(); drawPerson(front, look, false); back = this.add.graphics(); drawPerson(back, look, true); }
     const hands = this.add.graphics();
     const tag = this.add.text(0, -196, t('queueTag'), txt(17, C.greyDark, { backgroundColor: '#ffffffe6', padding: { x: 12, y: 4 } })).setOrigin(0.5).setVisible(false);
     const bubble = this.add.container(0, BUBBLE_Y);
@@ -277,6 +290,7 @@ export class GameScene extends Phaser.Scene {
       v.c.setPosition(sx + shake, sy + bob).setDepth(10 + sy / 2000);
       const faceUs = moving && dx + dy > 0;
       v.front.setVisible(faceUs); v.back.setVisible(!faceUs);
+      flipArt(v, moving, dx - dy);
       v.bubble.setVisible(!moving && v.slot >= 0);
       v.tag.setVisible(!moving && v.slot < 0 && v.state !== 'leave' && v.target === SPOT.queue[0]);
       if (v.state === 'leave' && !moving) {
@@ -644,13 +658,16 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: box, scale: 1, duration: 250, ease: 'Back.easeOut' });
 
     const c = this.add.container(0, 0);
-    const front = this.add.graphics(); drawPerson(front, COURIER, false);
-    const back = this.add.graphics(); drawPerson(back, COURIER, true);
-    // кепка й термосумка кур'єра
-    front.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath().fillRoundedRect(-4, -134, 34, 8, 4);
-    front.fillStyle(0xd96a20, 1).fillRect(-24, -104, 6, 50).fillRect(18, -104, 6, 50);
-    back.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath();
-    back.fillStyle(0xd96a20, 1).fillRoundedRect(-28, -116, 56, 58, 8).fillStyle(0xffffff, 0.9).fillRect(-18, -92, 36, 6);
+    let front = personSprite(this, 'ch-courier'), back = personSprite(this, 'ch-courierb') || personSprite(this, 'ch-courier');
+    if (!front) {
+      front = this.add.graphics(); drawPerson(front, COURIER, false);
+      back = this.add.graphics(); drawPerson(back, COURIER, true);
+      // кепка й термосумка кур'єра
+      front.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath().fillRoundedRect(-4, -134, 34, 8, 4);
+      front.fillStyle(0xd96a20, 1).fillRect(-24, -104, 6, 50).fillRect(18, -104, 6, 50);
+      back.fillStyle(0xff8a3d, 1).slice(0, -129, 26, Math.PI, 0, false).fillPath();
+      back.fillStyle(0xd96a20, 1).fillRoundedRect(-28, -116, 56, 58, 8).fillStyle(0xffffff, 0.9).fillRect(-18, -92, 36, 6);
+    }
     const hands = this.add.container(0, 0);
     c.add([front, back, hands]);
     this.couriers.push({ c, front, back, hands, box, cash, tip, pos: [...SPOT.courierFrom], target: SPOT.courier, phase: 'in', waitUntil: 0 });
@@ -666,6 +683,7 @@ export class GameScene extends Phaser.Scene {
       k.c.setPosition(sx, sy + bob).setDepth(10 + sy / 2000);
       const faceUs = !moving || dx + dy > 0;
       k.front.setVisible(faceUs); k.back.setVisible(!faceUs);
+      flipArt(k, moving, dx - dy);
       if (k.phase === 'in' && !moving) {
         // забирає коробку з прилавка
         k.phase = 'take';
