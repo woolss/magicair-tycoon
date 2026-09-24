@@ -216,7 +216,7 @@ export class Shift {
       if (!this.customers[i]) { this.seat(i, this.queue.shift()); this.emit('queue'); }
     }
 
-    // Другий продавець: бере найстаршого клієнта з простим замовленням і за serveSec віддає сам
+    // Другий продавець: бере найстаршого клієнта, якому треба до maxBalloons кульок (будь-яких), і за serveSec віддає сам
     const hp = this.helper;
     if (hp && hp.cust && this.t >= hp.doneAt) {
       const cust = hp.cust, slot = this.customers.indexOf(cust);
@@ -229,8 +229,7 @@ export class Shift {
       }
     }
     if (hp && !hp.cust) {
-      const simple = (o) => Object.entries(o).every(([k, n]) => c.items[k].kind === 'latex' && n <= c.helper.maxBalloons)
-        && Object.values(o).reduce((a, b) => a + b, 0) <= c.helper.maxBalloons;
+      const simple = (o) => Object.values(o).reduce((a, b) => a + b, 0) <= c.helper.maxBalloons;
       const cust = this.customers.filter((x) => x && !x.noStock && !x.helper && simple(x.order)
         && Object.entries(x.order).every(([k, n]) => this.stock[k] >= n)).sort((a, b) => a.seatedAt - b.seatedAt)[0];
       if (cust) {
@@ -238,8 +237,9 @@ export class Shift {
         hp.cust = cust; hp.doneAt = this.t + c.helper.serveSec; hp.startAt = this.t;
         hp.taken = Object.entries(cust.order).flatMap(([k, n]) => Array(n).fill(k));
         for (const k of hp.taken) this.stock[k]--;                 // бере товар зі складу одразу
-        this.stats.heliumUsed += hp.taken.length;                   // гелій зі спільного балона
-        this.helium = Math.max(0, this.helium - hp.taken.length);
+        const he = hp.taken.reduce((sum, k) => sum + c.items[k].helium, 0);
+        this.stats.heliumUsed += he;                                // гелій зі спільного балона (фольга — більше)
+        this.helium = Math.max(0, this.helium - he);
         this.emit('helperTake', { id: cust.id });
       }
     }

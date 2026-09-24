@@ -133,8 +133,14 @@ export class ShopScene extends Phaser.Scene {
       const g = this.cardAt(y, 96);
       g.fillStyle(st === 'owned' ? 0xe3f8ea : 0xfff0fb, 1).fillCircle(90, y, 38);
       upIcon(g, u.id, 88, y + 2, 28);
-      this.content.add(this.add.text(145, y - 18, upName(u.id), txt(26, C.ink)).setOrigin(0, 0.5));
-      this.content.add(this.add.text(145, y + 18, upDesc(u.id), txt(20, C.greyDark, { fontStyle: '700' })).setOrigin(0, 0.5));
+      const name = this.add.text(145, y - 18, upName(u.id), txt(26, C.ink)).setOrigin(0, 0.5);
+      const desc = this.add.text(145, y + 18, upDesc(u.id), txt(20, C.greyDark, { fontStyle: '700', wordWrap: { width: 355 } })).setOrigin(0, 0.5);
+      if (desc.height > 34) {
+        // довгий опис — у два рядки дрібніше, назва вище, щоб не залазило під кнопку
+        desc.setFontSize(18).setLineSpacing(-3).setOrigin(0, 0).setY(y - 6);
+        name.setY(y - 26);
+      }
+      this.content.add([name, desc]);
       if (st === 'owned') {
         g.fillStyle(C.green, 1).fillCircle(120, y - 26, 14);
         g.lineStyle(4, C.white, 1).beginPath().moveTo(113, y - 26).lineTo(118, y - 20).lineTo(127, y - 32).strokePath();
