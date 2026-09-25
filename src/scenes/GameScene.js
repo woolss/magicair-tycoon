@@ -1,4 +1,4 @@
-import { W, C, txt, drawItem } from '../theme.js';
+import { W, C, txt, drawItem, itemArt, artSlot } from '../theme.js';
 import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
@@ -153,6 +153,8 @@ export class GameScene extends Phaser.Scene {
     this.barGfx = this.add.graphics().setDepth(101);
     this.slots = barSlots(this.keys.length);
     this.stockTexts = this.slots.map((sl) => this.add.text(sl.x + sl.r * 0.62, sl.y + sl.r * 0.72, '', txt(17, C.white)).setOrigin(0.5).setDepth(103));
+    this.barArt = this.keys.map((key, i) => { const sl = this.slots[i], a = itemArt(this, ITEM(key), sl.x, sl.y - 3, sl.r * 0.6); return a && a.setDepth(102); });
+    this.badgeGfx = this.add.graphics().setDepth(102.5);   // бейджі залишку — поверх арт-кульок
     this.keys.forEach((key, i) => {
       const sl = this.slots[i];
       this.add.zone(sl.x, sl.y, sl.r * 2 + 16, sl.r * 2 + 8).setInteractive().setDepth(104)
@@ -241,20 +243,25 @@ export class GameScene extends Phaser.Scene {
     g.fillStyle(0x3a1f45, 0.2).fillRoundedRect(-w / 2, -h + 4, w, h, 16);
     g.fillStyle(C.white, 1).fillRoundedRect(-w / 2, -h, w, h, 16).fillTriangle(-9, -1, 9, -1, 0, 12);
     b.add(g);
+    const badge = this.add.graphics(), nums = [];   // бейджі кількості — поверх кульок
     entries.forEach(([key, n], i) => {
       const row = Math.floor(i / cols), inRow = Math.min(cols, entries.length - row * cols);
       const ix = (i % cols - (inRow - 1) / 2) * CW, iy = -h + 5 + CH / 2 + row * CH;
       if (key === 'digit' && cust.age) {
         // день народження: велика золота цифра віку
         b.add(this.add.text(ix - 1, iy - 1, String(cust.age), txt(30, 0xffc21a, { stroke: '#b37400', strokeThickness: 5 })).setOrigin(0.5));
-      } else drawItem(g, ITEM(key), ix - 2, iy - 2, 12);
+      } else {
+        const art = itemArt(this, ITEM(key), ix - 2, iy - 2, 14);   // арт трохи більший — дрібна картинка «милиться»
+        if (art) b.add(art); else drawItem(g, ITEM(key), ix - 2, iy - 2, 12);
+      }
       if (n > 1) {
-        g.fillStyle(C.magenta, 1).fillCircle(ix + 11, iy + 10, 9);
-        b.add(this.add.text(ix + 11, iy + 10, String(n), txt(13, C.white)).setOrigin(0.5));
+        badge.fillStyle(C.magenta, 1).fillCircle(ix + 11, iy + 10, 9);
+        nums.push(this.add.text(ix + 11, iy + 10, String(n), txt(13, C.white)).setOrigin(0.5));
       }
     });
+    b.add([badge, ...nums]);
     if (cust.noStock) {
-      g.lineStyle(7, C.red, 0.9).lineBetween(-w / 2 + 12, -h + 12, w / 2 - 12, -12).lineBetween(w / 2 - 12, -h + 12, -w / 2 + 12, -12);
+      badge.lineStyle(7, C.red, 0.9).lineBetween(-w / 2 + 12, -h + 12, w / 2 - 12, -12).lineBetween(w / 2 - 12, -h + 12, -w / 2 + 12, -12);
     }
     b.w = w; b.h = h;
     b.setVisible(false);
@@ -340,7 +347,8 @@ export class GameScene extends Phaser.Scene {
           items.forEach((k, i) => {
             const bx = 34 + (i % 3) * 16, by = -150 - i * 14;
             v.hands.lineStyle(1.5, 0x7a6a80, 1).lineBetween(30, -58, bx, by + 16);
-            drawItem(v.hands, ITEM(k), bx, by, 15);
+            const art = itemArt(this, ITEM(k), bx, by, 15);
+            if (art) v.c.add(art); else drawItem(v.hands, ITEM(k), bx, by, 15);
           });
           this.floatText(v.c.x, v.c.y - 250, `+${e.value}` + (e.tip ? ` (+${e.tip})` : '') + ' ₴', C.green);
           v.hopAt = this.time.now;
@@ -426,9 +434,9 @@ export class GameScene extends Phaser.Scene {
     b.forEach((ball, i) => {
       const x = bx + (i - (b.length - 1) / 2) * 26, y = by - 62 - (i % 2) * 18;
       strings.lineStyle(1.5, 0x7a6a80, 1).lineBetween(bx, by - 6, x, y + 16);
-      const g = this.add.graphics();
       const perfect = ball.quality === 'perfect';
-      drawItem(g, ITEM(ball.key), 0, 0, perfect ? 16 : 13, perfect ? 1 : 0.7);
+      let g = itemArt(this, ITEM(ball.key), 0, 0, perfect ? 19 : 15, perfect ? 1 : 0.7);
+      if (!g) { g = this.add.graphics(); drawItem(g, ITEM(ball.key), 0, 0, perfect ? 16 : 13, perfect ? 1 : 0.7); }
       const item = this.add.container(x, y, [g]).setSize(30, 40).setInteractive();
       item.on('pointerdown', () => this.shift.discard(i));
       this.bundleView.add(item);
@@ -520,11 +528,12 @@ export class GameScene extends Phaser.Scene {
     const nz = s.nozzle;
     let hint = t('pickBalloon');
     if (this.pickAnim) {
-      const k = this.pickAnim.t;
-      drawItem(g, ITEM(this.pickAnim.key), this.pickAnim.x + (nx - this.pickAnim.x) * k, this.pickAnim.y + (ny - 30 - this.pickAnim.y) * k, 20);
+      const k = this.pickAnim.t, px = this.pickAnim.x + (nx - this.pickAnim.x) * k, py = this.pickAnim.y + (ny - 30 - this.pickAnim.y) * k;
+      if (!artSlot(this, 'pick', ITEM(this.pickAnim.key), px, py, 20 / 50)) drawItem(g, ITEM(this.pickAnim.key), px, py, 20);
       hint = '';
-    }
+    } else artSlot(this, 'pick', null);
     this.nzG.clear().setVisible(!!nz && !this.pickAnim);
+    if (!nz || this.pickAnim) artSlot(this, 'nz', null);
     if (nz && !this.pickAnim) {
       const r = 14 + nz.fill * 62;
       if (nz.state === 'inflating') g.fillStyle(C.white, 0.22).fillCircle(nx, ny - 22 - r, r + 22);
@@ -534,8 +543,9 @@ export class GameScene extends Phaser.Scene {
       if (nz.state === 'inflating') { const w = Math.sin(this.time.now / 35) * 0.035; sx += w; sy -= w; }
       else if (k < 1) { const w = Math.sin(k * Math.PI * 3) * 0.2 * (1 - k); sx += w; sy -= w; }
       else if (nz.state === 'ready') { const w = Math.sin(this.time.now / 260) * 0.02; sx -= w; sy += w; }
-      drawItem(this.nzG, ITEM(nz.key), 0, -r, r);
-      this.nzG.setPosition(nx, ny - 22).setScale(sx, sy);
+      const art = artSlot(this, 'nz', ITEM(nz.key), nx, ny - 22, 1, 3, true);
+      if (art) art.setScale((sx * r) / 50, (sy * r) / 50);
+      else { drawItem(this.nzG, ITEM(nz.key), 0, -r, r); this.nzG.setPosition(nx, ny - 22).setScale(sx, sy); }
     }
     if (!this.pickAnim && nz) {
       hint = nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
@@ -570,15 +580,15 @@ export class GameScene extends Phaser.Scene {
     ui.fillStyle(C.ink, 1).fillRect(METER.x - 24, my - 3, 48, 6).fillTriangle(METER.x - 40, my - 10, METER.x - 40, my + 10, METER.x - 26, my);
 
     // нижня панель: товари із залишками
-    const bg = this.barGfx.clear();
+    const bg = this.barGfx.clear(), bdg = this.badgeGfx.clear();
     this.keys.forEach((key, i) => {
       const { x, y, r: sr } = this.slots[i], n = s.stock[key];
       const flashing = this.time.now - (this.flash[key] || -1e9) < 500;
       bg.fillStyle(flashing ? 0xffd6dc : n ? 0xfff4fa : 0xf1eaf3, 1).fillCircle(x, y, sr);
       bg.lineStyle(3, n ? 0xfbc8e8 : 0xe3d8e8, 1).strokeCircle(x, y, sr);
-      drawItem(bg, ITEM(key), x, y - 3, sr * 0.6, n ? 1 : 0.3);
+      if (this.barArt[i]) this.barArt[i].setAlpha(n ? 1 : 0.3); else drawItem(bg, ITEM(key), x, y - 3, sr * 0.6, n ? 1 : 0.3);
       const bw = n > 9 ? 36 : 28, bx = x + sr * 0.62, by = y + sr * 0.72;
-      bg.fillStyle(n ? C.purple : C.red, 1).fillRoundedRect(bx - bw / 2, by - 12, bw, 24, 12);
+      bdg.fillStyle(n ? C.purple : C.red, 1).fillRoundedRect(bx - bw / 2, by - 12, bw, 24, 12);
       this.stockTexts[i].setText(String(n));
     });
     // кнопка «скинути» — лише коли на прилавку є зв'язка
@@ -626,7 +636,8 @@ export class GameScene extends Phaser.Scene {
     b.add(this.add.text(40, 20, t('online'), txt(20, C.white)).setOrigin(0, 0.5));
     Object.entries(order).forEach(([key, n], i) => {
       const cx = 30 + (i % 3) * 51, cy = 70 + Math.floor(i / 3) * 46;
-      drawItem(g, ITEM(key), cx, cy - 4, 13);
+      const art = itemArt(this, ITEM(key), cx, cy - 4, 13);
+      if (art) b.add(art); else drawItem(g, ITEM(key), cx, cy - 4, 13);
       b.add(this.add.text(cx + 14, cy + 12, `×${n}`, txt(15, C.ink)).setOrigin(0.5));
     });
     this.tweens.killTweensOf(this.ticket);
@@ -649,7 +660,10 @@ export class GameScene extends Phaser.Scene {
     const [bx, by] = P(...SPOT.box);
     const box = this.add.container(bx, by).setDepth(4);
     const bg = this.add.graphics();
-    [[-12, -44, 0xff5fb8], [4, -52, 0x4fa3ff], [16, -40, 0xffc933]].forEach(([x, y, col]) => drawItem(bg, { kind: 'latex', color: col }, x, y, 11));
+    [[-12, -44, 0xff5fb8], [4, -52, 0x4fa3ff], [16, -40, 0xffc933]].forEach(([x, y, col]) => {
+      const it = { kind: 'latex', color: col }, art = itemArt(this, it, x, y, 11);
+      if (art) box.add(art); else drawItem(bg, it, x, y, 11);
+    });
     bg.fillStyle(0xa10e93, 1).fillRoundedRect(-24, -26, 48, 30, 5);
     bg.fillStyle(C.magenta, 1).fillRoundedRect(-24, -30, 48, 30, 5);
     bg.fillStyle(C.gold, 1).fillRect(-4, -30, 8, 30).fillRect(-24, -19, 48, 7);
@@ -759,9 +773,9 @@ export class GameScene extends Phaser.Scene {
 
   // Сердечко над задоволеним клієнтом
   heartPop(x, y) {
-    const g = this.add.graphics().setDepth(59);
-    drawItem(g, { kind: 'heart', color: 0xff3b6b }, 0, 0, 20);
-    g.setPosition(x, y).setScale(0);
+    let g = itemArt(this, { kind: 'heart', color: 0xff3b6b }, 0, 0, 20);
+    if (!g) { g = this.add.graphics(); drawItem(g, { kind: 'heart', color: 0xff3b6b }, 0, 0, 20); }
+    g.setDepth(59).setPosition(x, y).setScale(0);
     this.tweens.add({ targets: g, scale: 1, duration: 200, ease: 'Back.easeOut' });
     this.tweens.add({ targets: g, y: y - 70, alpha: 0, duration: 900, delay: 200, onComplete: () => g.destroy() });
   }
