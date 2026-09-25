@@ -1,4 +1,4 @@
-import { W, C, txt, drawItem } from '../theme.js';
+import { W, C, txt, drawItem, itemArt } from '../theme.js';
 import { t, itemName, upName, upDesc } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { deriveParams } from '../logic.js';
@@ -86,7 +86,9 @@ export class ShopScene extends Phaser.Scene {
     g.lineStyle(4, 0xc9c3d2, 1).beginPath().arc(cx, cy, R, Math.PI, 0, false).strokePath();
     b.slots.forEach((k, i) => {
       const a = Math.PI - (i * Math.PI) / (n - 1), x = cx + Math.cos(a) * R, y = cy - Math.sin(a) * R;
-      if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y, 12);
+      const art = itemArt(this, CONFIG.items[k], x, y, 11, 1, b.age || 7);
+      if (art) layer.add(art);
+      else if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y, 12);
       else drawItem(g, CONFIG.items[k], x, y, 11);
     });
     // що потрібно і чи є на складі
@@ -94,7 +96,9 @@ export class ShopScene extends Phaser.Scene {
     need.forEach(([k, cnt], i) => {
       const x = W / 2 + (i - (need.length - 1) / 2) * 120, y = top + 420, have = run.stock[k] || 0, ok = have >= cnt;
       g.fillStyle(ok ? 0xe3f8ea : 0xffe0e4, 1).fillRoundedRect(x - 52, y - 34, 104, 88, 18);
-      if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y - 6, 16);
+      const art = itemArt(this, CONFIG.items[k], x, y - 6, 16, 1, b.age || 7);
+      if (art) layer.add(art);
+      else if (k === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(x, y - 6, 16);
       else drawItem(g, CONFIG.items[k], x, y - 6, 16);
       T(x, y + 32, `×${cnt}`, txt(22, ok ? C.green : C.red));
     });
@@ -155,7 +159,8 @@ export class ShopScene extends Phaser.Scene {
       const y = 320 + i * rowH, it = CONFIG.items[key];
       const g = this.cardAt(y, rowH - 12);
       g.fillStyle(0xfff0fb, 1).fillCircle(90, y, 38);
-      drawItem(g, it, 90, y - 3, 24);
+      const art = itemArt(this, it, 90, y - 3, 24);
+      if (art) this.content.add(art); else drawItem(g, it, 90, y - 3, 24);
       const have = run.stock[key] || 0, n = this.pending[key] || 0;
       this.content.add(this.add.text(145, y - 24, itemName(key), txt(26, C.ink)).setOrigin(0, 0.5));
       this.content.add(this.add.text(145, y + 6, `${t('inStock', { n: have })} · ${t('perPiece', { p: it.buy })}`, txt(19, C.greyDark, { fontStyle: '700' })).setOrigin(0, 0.5));
