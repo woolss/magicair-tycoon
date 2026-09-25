@@ -29,6 +29,7 @@ async function boot() {
     backgroundColor: C.bg,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: W, height: H },
     input: { activePointers: 2 },
+    render: { mipmapFilter: 'LINEAR_MIPMAP_LINEAR' },   // арт зменшується без «мила» й ряботиння (текстури 2ⁿ)
     audio: { noAudio: true },   // свої звуки в sfx.js
     scene: [SplashScene, StartScene, GameScene, SummaryScene, ShopScene, EventScene],
   });

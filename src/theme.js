@@ -86,3 +86,36 @@ export function drawItem(g, item, x, y, r, alpha = 1) {
   }
   drawBalloon(g, x, y, r, item.color, alpha);
 }
+
+// Арт-кульки з ChatGPT (assets/bl-*.png, 256×256 — для mip-map; сама кулька ≤240 px по центру):
+// контейнер, центр тіла кульки в (x, y), «радіус» r — як у drawItem. k — розмір кульки в r, oy — центр тіла.
+// Латекс білий — фарбуємо tint-ом. Немає текстури — null, тоді малюємо кодом.
+const BALLOON_ART = {
+  latex: { key: 'bl-latex', k: 2.3, oy: 0.434 }, confetti: { key: 'bl-confetti', k: 2.3, oy: 0.434 },
+  heart: { key: 'bl-heart', k: 1.9, oy: 0.5 }, star: { key: 'bl-star', k: 2.2, oy: 0.516 }, digit: { key: 'bl-digit', k: 2.0, oy: 0.5 },
+};
+export function itemArt(scene, item, x, y, r, alpha = 1, label) {
+  const a = BALLOON_ART[item.kind];
+  if (!a || !scene.textures.exists(a.key)) return null;
+  const img = scene.add.image(0, 0, a.key).setOrigin(0.5, a.oy);
+  img.setScale((a.k * r) / 240);
+  if (item.kind === 'latex') img.setTint(item.color);
+  const c = scene.add.container(x, y, [img]).setAlpha(alpha);
+  if (item.kind === 'digit') c.add(scene.add.text(0, 0, String(label ?? 7), txt(Math.round(r * 1.25), C.white, { stroke: '#b37400', strokeThickness: Math.max(3, Math.round(r * 0.18)) })).setOrigin(0.5));
+  return c;
+}
+
+// Арт-кулька, що живе між кадрами (сопло, політ із панелі): перестворюємо лише коли змінився товар.
+// bottom — точка (x, y) це низ кульки (для сопла: масштаб «пружинки» від низу). item = null — сховати.
+export function artSlot(scene, slot, item, x, y, scale = 1, depth = 3, bottom = false, label) {
+  const s = (scene.artSlots ||= {});
+  if (!item) { if (s[slot]) s[slot].obj.setVisible(false); return null; }
+  const id = `${item.kind}:${item.color}:${label ?? ''}`;
+  if (!s[slot] || s[slot].id !== id || !s[slot].obj.scene) {
+    if (s[slot]) s[slot].obj.destroy();
+    const inner = itemArt(scene, item, 0, bottom ? -50 : 0, 50, 1, label);
+    if (!inner) return null;
+    s[slot] = { id, obj: scene.add.container(0, 0, [inner]).setDepth(depth) };
+  }
+  return s[slot].obj.setVisible(true).setPosition(x, y).setScale(scale);
+}
