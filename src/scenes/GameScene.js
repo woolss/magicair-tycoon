@@ -31,6 +31,19 @@ function barSlots(n) {
 }
 const BUBBLE_Y = -168;                          // низ хмаринки над головою
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
+const LANE = 10.8;                              // «прохід» між тими, хто біля прилавка, і чергою
+
+// Маршрут через прохід: щоб не йти крізь людей, що вже стоять біля прилавка
+function route(from, to) {
+  const atDoor = (p) => p[0] < 1, atCounter = (p) => p[0] >= 1 && p[1] < LANE - 0.5;
+  const pts = [];
+  if (atCounter(from)) pts.push([from[0], LANE]);
+  else if (atDoor(from)) pts.push([2, LANE]);
+  if (atDoor(to)) pts.push([2, LANE]);
+  else if (atCounter(to)) pts.push([to[0], LANE]);
+  pts.push(to);
+  return pts;
+}
 const shadeDark = 0xa10e93;
 const MONEY_ICON = { x: 48, y: 55 };             // куди летять монетки
 const TICKET = { x: 544, y: 140, w: 162, h: 176 }; // чек онлайн-замовлення — праворуч угорі
@@ -227,7 +240,7 @@ export class GameScene extends Phaser.Scene {
     c.add([front, back, hands, bubble, bar, tag]);
     this.drawBubble(bubble, cust);
     c.setInteractive(new Phaser.Geom.Rectangle(-60, -250, 120, 250), Phaser.Geom.Rectangle.Contains);
-    const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, cust, pos: [...SPOT.door], target: [...SPOT.door], slot: -1, state: 'in' };
+    const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, cust, pos: [...SPOT.door], target: null, path: [[...SPOT.door]], slot: -1, state: 'in' };
     c.on('pointerdown', () => { if (v.slot >= 0) this.shift.give(v.slot); });
     this.people.set(cust.id, v);
     sfx.arrive();
@@ -273,18 +286,20 @@ export class GameScene extends Phaser.Scene {
     s.customers.forEach((c, i) => c && want.set(c.id, { cust: c, pos: SPOT.slots[i], slot: i }));
     s.queue.forEach((c, j) => want.set(c.id, { cust: c, pos: SPOT.queue[j], slot: -1 }));
 
+    const goTo = (v, to) => { if (v.target !== to) { v.target = to; v.path = route(v.pos, to); } };
     for (const [id, w] of want) {
       const v = this.people.get(id) || this.spawn(w.cust);
-      v.target = w.pos; v.slot = w.slot; v.cust = w.cust;
+      goTo(v, w.pos); v.slot = w.slot; v.cust = w.cust;
       if (w.cust.noStock && !v.noStockDrawn) { v.bubble.removeAll(true); this.drawBubble(v.bubble, w.cust); v.noStockDrawn = true; }
     }
     for (const v of this.people.values()) {
-      if (!want.has(v.id) && v.state !== 'leave') { v.state = 'leave'; v.slot = -1; v.target = SPOT.door; v.bubble.setVisible(false); v.bar.clear(); }
+      if (!want.has(v.id) && v.state !== 'leave') { v.state = 'leave'; v.slot = -1; goTo(v, SPOT.door); v.bubble.setVisible(false); v.bar.clear(); }
     }
 
     for (const v of [...this.people.values()]) {
-      const dx = v.target[0] - v.pos[0], dy = v.target[1] - v.pos[1];
-      const dist = Math.hypot(dx, dy);
+      // йдемо по точках маршруту; дійшли до однієї — одразу до наступної
+      let wp = v.path[0], dx = wp[0] - v.pos[0], dy = wp[1] - v.pos[1], dist = Math.hypot(dx, dy);
+      while (dist <= 0.02 && v.path.length > 1) { v.path.shift(); wp = v.path[0]; dx = wp[0] - v.pos[0]; dy = wp[1] - v.pos[1]; dist = Math.hypot(dx, dy); }
       const step = Math.min(dist, WALK * dt);
       const moving = dist > 0.02;
       if (moving) { v.pos[0] += (dx / dist) * step; v.pos[1] += (dy / dist) * step; }
