@@ -78,13 +78,15 @@ function unP(sx, sy, y) {
   const x = (sx - ISO.OX) / (C30 * ISO.S) + y;
   return [x, y, (ISO.OY + (x + y) * 0.5 * ISO.S - sy) / ISO.S];
 }
-// З арт-прилавком: сопло — його верх, товар лежить на нижчій стільниці; продавці зсуваються разом із прилавком (черга лишається)
+const SLOTS0 = SPOT.slots.map((p) => [...p]);   // місця біля прилавка без зсуву
+// З арт-прилавком: сопло — його верх, товар лежить на нижчій стільниці; продавці й місця покупців зсуваються разом із прилавком (черга лишається)
 function useCounterArt(rich) {
   counterFoot = rich ? COUNTER_ART.at.shop : COUNTER_ART.at.point;
   const dy = counterFoot[1] - 5.9, z = COUNTER_ART.top, [tx, ty] = counterAt(...COUNTER_ART.tip);
   Object.assign(SPOT, {
     nozzle: unP(tx, ty + 22, 5.2 + dy), bundle: [4.0, 5.3 + dy, z], box: [8.2, 5.2 + dy, z],
     seller: [5.0, 3.8 + dy], helper: [7.1, 3.8 + dy],
+    slots: SLOTS0.map(([x, y]) => [x, y + dy]),
   });
 }
 
