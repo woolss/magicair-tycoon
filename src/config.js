@@ -26,7 +26,7 @@ export const CONFIG = {
   helium: {
     tank: 100,          // од. в балоні (апгрейд — 200)
     tankPrice: 120,     // ціна балона → 1,2 за одиницю
-    refillSec: 15,      // очікування нового балона
+    refillSec: 10,      // очікування нового балона
   },
 
   // Надування: заповнення 0→1 за fullSec. Відпустив нижче greenMin — кулька чекає, можна додути;
@@ -69,16 +69,18 @@ export const CONFIG = {
     { id: 'shop',     price: 2500, req: 'foil', effect: { shop: true } },
     { id: 'digits',   price: 2000, req: 'shop', effect: { unlock: 'digits' } },
     { id: 'helper',   price: 2400, req: 'shop', effect: { helper: true } },
-    { id: 'ads',      price: 2500, req: 'shop', effect: { birthday: 0.4 } },
+    { id: 'helper2',  price: 1800, req: 'helper', effect: { helperMax: 5 } },   // продавець II: замовлення до 5 кульок
+    { id: 'ads',      price: 2500, req: 'digits', effect: { birthday: 0.4 } },  // більше днів народження — має сенс лише з цифрами
     // ступінь 4 — машина: виїзди на оформлення (арки)
     { id: 'car',      price: 5000, req: 'helper', effect: { car: true } },   // поки ти на виїзді, магазин тримає продавець
   ],
 
-  // Магазин: дорожча оренда, клієнти терплячіші (потік клієнтів НЕ росте)
-  shop: { rent: 150, patienceSec: 45 },
+  // Магазин: дорожча оренда, клієнти терплячіші, клієнтів +20%
+  shop: { rent: 150, patienceSec: 45, flow: 1.2 },
 
-  // Другий продавець: сам обслуговує замовлення до maxBalloons кульок (будь-яких), повільніше за гравця
-  helper: { salary: 100, serveSec: 8, maxBalloons: 3 },
+  // Другий продавець: сам обслуговує замовлення до maxBalloons кульок (будь-яких), повільніше за гравця.
+  // Продавець II (helper2): до maxBalloons2 кульок, зарплата salary2 замість salary
+  helper: { salary: 100, serveSec: 8, maxBalloons: 3, maxBalloons2: 5, salary2: 110 },
 
   // Онлайн-замовлення з доставкою (апгрейд «online»): одне за раз, більший набір, більше часу, кур'єр забирає коробку
   online: {

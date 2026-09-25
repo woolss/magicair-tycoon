@@ -17,7 +17,7 @@ const pickOne = (rng, arr) => arr[Math.floor(rng() * arr.length)];
 
 // Що дають куплені апгрейди: насос, потік клієнтів, балон, відкриті товари
 export function deriveParams(cfg, owned = []) {
-  let pump = 0, flow = 1, tank = cfg.helium.tank, online = false, shop = false, helper = false, birthday = cfg.orders.birthdayChance;
+  let pump = 0, flow = 1, tank = cfg.helium.tank, online = false, shop = false, helper = false, helper2 = false, birthday = cfg.orders.birthdayChance;
   const unlocked = new Set();
   for (const u of cfg.upgrades) {
     if (!owned.includes(u.id)) continue;
@@ -29,19 +29,22 @@ export function deriveParams(cfg, owned = []) {
     if (e.online) online = true;
     if (e.shop) shop = true;
     if (e.helper) helper = true;
+    if (e.helperMax) helper2 = true;
     if (e.birthday) birthday = e.birthday;
   }
   const open = Object.keys(cfg.items).filter((k) => {
     const u = cfg.items[k].unlock;
     return !u || unlocked.has(u);
   });
+  if (shop) flow *= cfg.shop.flow || 1;   // у магазині клієнтів більше
   const p = cfg.pumps[pump];
   return {
     pump, fullSec: p.fullSec, greenMin: cfg.inflate.greenMin, greenMax: p.greenMax,
     gapSec: cfg.customers.baseGapSec / flow, tank, open, online, shop, helper, birthday,
     patienceSec: shop ? cfg.shop.patienceSec : cfg.customers.patienceSec,
     rent: shop ? cfg.shop.rent : cfg.rent,
-    salary: (cfg.salary || 0) + (helper ? cfg.helper.salary : 0),
+    salary: (cfg.salary || 0) + (helper ? (helper2 ? cfg.helper.salary2 : cfg.helper.salary) : 0),
+    helperMax: helper2 ? cfg.helper.maxBalloons2 : cfg.helper.maxBalloons,
   };
 }
 
@@ -172,6 +175,7 @@ export class Shift {
   seat(slot, cust) {
     cust.slot = slot;
     cust.seatedAt = this.t; // терпіння біля прилавка рахуємо з цього моменту
+    if (this.waitWalk) cust.walking = true;   // гра: ще йде до прилавка — помічник не бере, поки не дійде
     if (!this.canFulfil(cust.order)) {
       cust.noStock = true;
       cust.leaveAt = this.t + this.cfg.customers.noStockLeaveSec;
@@ -229,8 +233,8 @@ export class Shift {
       }
     }
     if (hp && !hp.cust) {
-      const simple = (o) => Object.values(o).reduce((a, b) => a + b, 0) <= c.helper.maxBalloons;
-      const cust = this.customers.filter((x) => x && !x.noStock && !x.helper && simple(x.order)
+      const simple = (o) => Object.values(o).reduce((a, b) => a + b, 0) <= this.p.helperMax;
+      const cust = this.customers.filter((x) => x && !x.noStock && !x.helper && !x.walking && simple(x.order)
         && Object.entries(x.order).every(([k, n]) => this.stock[k] >= n)).sort((a, b) => a.seatedAt - b.seatedAt)[0];
       if (cust) {
         cust.helper = true;
