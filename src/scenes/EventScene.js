@@ -1,4 +1,4 @@
-import { W, H, C, txt, drawItem, drawBalloon } from '../theme.js';
+import { W, H, C, txt, drawItem, drawBalloon, itemArt, artSlot } from '../theme.js';
 import { t, itemName } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { EventShift } from '../event.js';
@@ -98,7 +98,9 @@ export class EventScene extends Phaser.Scene {
     const [x, y] = this.slotPos(slot), r = this.balloonR;
     const c = this.add.container(NOZ.x, NOZ.y - 80).setDepth(10);
     const g = this.add.graphics();
-    if (key === 'digit') c.add(this.add.text(0, 0, String(this.b.age || 7), txt(r * 1.6, 0xffc21a, { stroke: '#b37400', strokeThickness: 6 })).setOrigin(0.5));
+    const art = itemArt(this, ITEM(key), 0, 0, r, 1, this.b.age || 7);
+    if (art) c.add(art);
+    else if (key === 'digit') c.add(this.add.text(0, 0, String(this.b.age || 7), txt(r * 1.6, 0xffc21a, { stroke: '#b37400', strokeThickness: 6 })).setOrigin(0.5));
     else { drawItem(g, ITEM(key), 0, 0, r); c.add(g); }
     c.setScale(1.6);
     this.tweens.add({
@@ -147,6 +149,8 @@ export class EventScene extends Phaser.Scene {
     const n = this.keys.length;
     this.slots = this.keys.map((k, i) => n <= 3 ? { x: 84 + i * 112, y: 1168, r: 46 } : { x: 84 + (i % 3) * 112, y: i < 3 ? 1118 : 1220, r: 44 });
     this.badgeTexts = this.slots.map((sl) => this.add.text(sl.x + sl.r * 0.62, sl.y + sl.r * 0.72, '', txt(17, C.white)).setOrigin(0.5).setDepth(103));
+    this.barArt = this.keys.map((key, i) => { const sl = this.slots[i], a = itemArt(this, ITEM(key), sl.x, sl.y - 3, sl.r * 0.6, 1, this.b.age || 7); return a && a.setDepth(102); });
+    this.badgeGfx = this.add.graphics().setDepth(102.5);
     this.keys.forEach((key, i) => {
       const sl = this.slots[i];
       this.add.zone(sl.x, sl.y, sl.r * 2 + 16, sl.r * 2 + 8).setInteractive().setDepth(104).on('pointerdown', () => this.started && this.ev.pick(key));
@@ -220,9 +224,9 @@ export class EventScene extends Phaser.Scene {
       case 'wasted': {
         // зайва кулька відлітає вгору
         sfx.wrong();
-        const g = this.add.graphics().setDepth(30);
-        drawItem(g, ITEM(e.key), 0, 0, 26);
-        g.setPosition(NOZ.x, NOZ.y - 80);
+        let g = itemArt(this, ITEM(e.key), 0, 0, 26, 1, this.b.age || 7);
+        if (!g) { g = this.add.graphics(); drawItem(g, ITEM(e.key), 0, 0, 26); }
+        g.setDepth(30).setPosition(NOZ.x, NOZ.y - 80);
         this.tweens.add({ targets: g, y: -80, x: NOZ.x + 120, angle: 25, duration: 1400, ease: 'Sine.easeIn', onComplete: () => g.destroy() });
         this.floatText(NOZ.x, NOZ.y - 170, t('wasted'), C.red);
         break;
@@ -242,13 +246,16 @@ export class EventScene extends Phaser.Scene {
     const g = this.nzG.clear(), nz = ev.nozzle;
     let hint = t('pickColor');
     if (this.pickAnim) {
-      const k = this.pickAnim.t;
-      drawItem(g, ITEM(this.pickAnim.key), this.pickAnim.x + (NOZ.x - this.pickAnim.x) * k, this.pickAnim.y + (NOZ.y - 30 - this.pickAnim.y) * k, 20);
+      const k = this.pickAnim.t, px = this.pickAnim.x + (NOZ.x - this.pickAnim.x) * k, py = this.pickAnim.y + (NOZ.y - 30 - this.pickAnim.y) * k;
+      if (!artSlot(this, 'pick', ITEM(this.pickAnim.key), px, py, 20 / 50, 20, false, this.b.age || 7)) drawItem(g, ITEM(this.pickAnim.key), px, py, 20);
       hint = '';
-    } else if (nz) {
+    } else artSlot(this, 'pick', null);
+    if (!nz || this.pickAnim) artSlot(this, 'nz', null);
+    if (nz && !this.pickAnim) {
       const r = 14 + nz.fill * 62;
       g.fillStyle(0x7c8a99, 1).fillRoundedRect(NOZ.x - 8, NOZ.y - 22, 16, 22, 4);
-      if (nz.key === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(NOZ.x, NOZ.y - 22 - r, r * 0.8);
+      if (artSlot(this, 'nz', ITEM(nz.key), NOZ.x, NOZ.y - 22, r / 50, 20, true, this.b.age || 7)) { /* арт-кулька */ }
+      else if (nz.key === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(NOZ.x, NOZ.y - 22 - r, r * 0.8);
       else drawItem(g, ITEM(nz.key), NOZ.x, NOZ.y - 22 - r, r);
       hint = nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
     }
@@ -261,15 +268,16 @@ export class EventScene extends Phaser.Scene {
     this.ui.clear().fillStyle(C.ink, 1).fillRect(METER.x - 24, my - 3, 48, 6).fillTriangle(METER.x - 40, my - 10, METER.x - 40, my + 10, METER.x - 26, my);
 
     // панель кольорів: бейдж — скільки ще треба; 0 — зелена галочка
-    const bg = this.barGfx.clear();
+    const bg = this.barGfx.clear(), bdg = this.badgeGfx.clear();
     this.keys.forEach((key, i) => {
       const { x, y, r } = this.slots[i], need = rem[key] || 0;
       const flashing = this.time.now - (this.flash[key] || -1e9) < 500;
       bg.fillStyle(flashing ? 0xffd6dc : 0xfff4fa, 1).fillCircle(x, y, r).lineStyle(3, need ? 0xfbc8e8 : 0xbfeccd, 1).strokeCircle(x, y, r);
-      if (key === 'digit') bg.fillStyle(0xffc21a, 1).fillCircle(x, y - 3, r * 0.5);
+      if (this.barArt[i]) this.barArt[i].setAlpha(need ? 1 : 0.45);
+      else if (key === 'digit') bg.fillStyle(0xffc21a, 1).fillCircle(x, y - 3, r * 0.5);
       else drawItem(bg, ITEM(key), x, y - 3, r * 0.6, need ? 1 : 0.45);
       const bx = x + r * 0.62, by = y + r * 0.72;
-      bg.fillStyle(need ? C.magenta : C.green, 1).fillRoundedRect(bx - 16, by - 12, 32, 24, 12);
+      bdg.fillStyle(need ? C.magenta : C.green, 1).fillRoundedRect(bx - 16, by - 12, 32, 24, 12);
       this.badgeTexts[i].setText(need ? String(need) : '✓');
     });
 

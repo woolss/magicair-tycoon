@@ -1,5 +1,5 @@
 // Ізометричний магазин: проекція, зал, прилавок, люди. Малюємо простими формами (до арту).
-import { C, drawBalloon, drawItem } from './theme.js';
+import { C, drawBalloon, drawItem, itemArt } from './theme.js';
 
 // Масштаб і кут кімнати підігнані під арт-фони (кут підлоги на фоні = P(0, 0))
 export const ISO = { S: 49.2, OX: 352, OY: 400 };
@@ -98,9 +98,10 @@ function drawArtRoom(scene, rich, key) {
   A.shelves.forEach(([[x0, y0], [x1, y1], n], row) => {
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n, [x, y] = artAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
-      if (row % 2 === 1 && i % 3 === 1) drawItem(g, heart, x, y - 15, 14);
-      else if (row % 2 === 1 && i % 3 === 2) drawItem(g, star, x, y - 15, 14);
-      else drawBalloon(g, x, y - 16, 13, cols[(i + row * 2) % 5]);
+      const it = row % 2 === 1 && i % 3 === 1 ? heart : row % 2 === 1 && i % 3 === 2 ? star : { kind: 'latex', color: cols[(i + row * 2) % 5] };
+      const [yy, rr] = it.kind === 'latex' ? [y - 16, 13] : [y - 15, 14];
+      const art = itemArt(scene, it, x, yy, rr);
+      if (art) art.setDepth(0); else drawItem(g, it, x, yy, rr);
     }
   });
   drawNeon(scene, rich);
