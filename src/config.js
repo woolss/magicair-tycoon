@@ -80,7 +80,7 @@ export const CONFIG = {
 
   // Другий продавець: сам обслуговує замовлення до maxBalloons кульок (будь-яких), повільніше за гравця.
   // Продавець II (helper2): до maxBalloons2 кульок, зарплата salary2 замість salary
-  helper: { salary: 100, serveSec: 8, maxBalloons: 3, maxBalloons2: 5, salary2: 110 },
+  helper: { salary: 100, serveSec: 8, pauseSec: 2, maxBalloons: 3, maxBalloons2: 5, salary2: 110 },
 
   // Онлайн-замовлення з доставкою (апгрейд «online»): одне за раз, більший набір, більше часу, кур'єр забирає коробку
   online: {

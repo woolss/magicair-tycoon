@@ -269,8 +269,9 @@ export class GameScene extends Phaser.Scene {
     c.on('pointerdown', () => {
       if (v.slot < 0) return;
       const s = this.shift;
+      s.selectTarget(v.slot);
       if (v.cust.order.digit && !bundleCovers(v.cust.order, s.bundle, v.cust.age)) s.selectDigitCustomer(v.slot);
-      else s.give(v.slot);
+      else if (bundleCovers(v.cust.order, s.bundle, v.cust.age)) s.give(v.slot);
     });
     this.people.set(cust.id, v);
     sfx.arrive();
@@ -598,7 +599,7 @@ export class GameScene extends Phaser.Scene {
       v.bubble.angle = f < 0.25 && !c.noStock && !c.helper ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
-      if (c.id === s.digitCustomerId && !c.helper) v.bar.lineStyle(3, C.purple, 0.85).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
+      if ((c.id === s.playerTargetId || c.id === s.digitCustomerId) && !c.helper) v.bar.lineStyle(3, C.purple, 0.85).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
       if (s.bundle.length && !c.noStock && !c.helper && bundleCovers(c.order, s.bundle, c.age)) {
         v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
         readyFor = true;
