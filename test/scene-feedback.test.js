@@ -42,13 +42,35 @@ test('scene enables walking guard and releases helper only at final counter posi
   s.nextArrival = Infinity;
   s.seat(0, { id: 1, order: { pink: 1 }, arrivedAt: 0 });
   const cust = s.customers[0], target = SPOT.slots[0];
-  const container = { setPosition() { return this; }, setDepth() { return this; } };
-  scene.people.set(cust.id, { id: cust.id, cust, c: container, front: { setVisible: no }, back: { setVisible: no }, bubble: { setVisible: no }, tag: { setVisible: no }, bar: { clear: no }, pos: [target[0] - 1, target[1]], target, path: [target], slot: 0, state: 'in' });
+  const container = { x: 0, setPosition(x) { this.x = x; return this; }, setDepth() { return this; } };
+  const figure = () => ({ scaleX: 1, scaleY: 1, setVisible: no, setScale: no, setAngle: no });
+  scene.people.set(cust.id, { id: cust.id, cust, c: container, front: figure(), back: figure(), bubble: { setVisible: no }, tag: { setVisible: no }, talk: { setVisible: no }, bar: { clear: no }, pos: [target[0] - 1, target[1]], target, path: [target], slot: 0, state: 'in' });
   scene.time = { now: 1000 };
   scene.syncPeople(.01); s.update(.01);
   assert.equal(cust.walking, true); assert.equal(s.helper.cust, null);
   scene.syncPeople(1); assert.equal(cust.walking, false);
   s.update(.01); assert.equal(s.helper.cust, cust);
+});
+
+test('queue remark disappears as soon as its customer moves to the counter', () => {
+  const scene = new GameScene();
+  const customer = { id: 8, arrivedAt: 0, order: { pink: 1 } };
+  scene.shift = { t: 13, queue: [customer], customers: [] };
+  scene.people = new Map(); scene.time = { now: 1000 };
+  const figure = () => ({ scaleX: 1, scaleY: 1, setVisible: no, setScale: no, setAngle: no });
+  const talk = { visible: false, setVisible(value) { this.visible = value; } };
+  const c = { x: 0, y: 0, setPosition(x, y) { this.x = x; this.y = y; return this; }, setDepth() { return this; } };
+  const v = { id: customer.id, cust: customer, c, front: figure(), back: figure(),
+    bubble: { setVisible: no }, tag: { setVisible: no }, talk,
+    talkText: { setText: no }, bar: { clear: no }, pos: [...SPOT.queue[0]],
+    target: SPOT.queue[0], path: [SPOT.queue[0]], slot: -1, state: 'in' };
+  scene.people.set(customer.id, v);
+  scene.syncPeople(.01);
+  assert.equal(talk.visible, true);
+  scene.shift.queue = [];
+  scene.shift.customers = [customer];
+  scene.syncPeople(.01);
+  assert.equal(talk.visible, false);
 });
 
 test('packing immediately redraws the remaining counter bundle', () => {

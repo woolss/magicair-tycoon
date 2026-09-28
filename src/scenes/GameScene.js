@@ -4,6 +4,7 @@ import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { availableMissions, missionProgress, recordMissionEvent } from '../missions.js';
+import { posePerson, queueRemark } from '../characterMotion.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
@@ -83,11 +84,13 @@ export class GameScene extends Phaser.Scene {
     const { tankTop } = drawRoom(this, this.shift.p.shop);
     const [sx, sy] = P(...SPOT.seller);
     const seller = personSprite(this, 'ch-seller');
+    this.sellerG = seller;
     if (seller) seller.setPosition(sx, sy).setDepth(1);
     else {
       const g = this.add.graphics().setDepth(1);
       drawPerson(g, SELLER, false);
       g.setPosition(sx, sy);
+      this.sellerG = g;
       this.add.text(sx, sy - 64, 'MagicAir', txt(10, C.white)).setOrigin(0.5).setDepth(1);
     }
     if (this.shift.helper) {
@@ -249,12 +252,17 @@ export class GameScene extends Phaser.Scene {
     if (!front) { front = this.add.graphics(); drawPerson(front, look, false); back = this.add.graphics(); drawPerson(back, look, true); }
     const hands = this.add.graphics();
     const tag = this.add.text(0, -196, t('queueTag'), txt(17, C.greyDark, { backgroundColor: '#ffffffe6', padding: { x: 12, y: 4 } })).setOrigin(0.5).setVisible(false);
+    const talkG = this.add.graphics();
+    talkG.fillStyle(0x3a1f45, 0.18).fillRoundedRect(-115, -30, 230, 62, 18);
+    talkG.fillStyle(C.white, 1).fillRoundedRect(-115, -34, 230, 62, 18).fillTriangle(-9, 26, 9, 26, 0, 42);
+    const talkText = this.add.text(0, -3, '', txt(20, C.ink, { align: 'center', wordWrap: { width: 212 } })).setOrigin(0.5);
+    const talk = this.add.container(0, -214, [talkG, talkText]).setVisible(false);
     const bubble = this.add.container(0, BUBBLE_Y);
     const bar = this.add.graphics();
-    c.add([front, back, hands, bubble, bar, tag]);
+    c.add([front, back, hands, bubble, bar, tag, talk]);
     this.drawBubble(bubble, cust);
     c.setInteractive(new Phaser.Geom.Rectangle(-60, -250, 120, 250), Phaser.Geom.Rectangle.Contains);
-    const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, cust, pos: [...SPOT.door], target: null, path: [[...SPOT.door]], slot: -1, state: 'in' };
+    const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, talk, talkText, cust, pos: [...SPOT.door], target: null, path: [[...SPOT.door]], slot: -1, state: 'in' };
     c.on('pointerdown', () => {
       if (v.slot < 0) return;
       const s = this.shift;
@@ -301,6 +309,7 @@ export class GameScene extends Phaser.Scene {
 
   syncPeople(dt) {
     const s = this.shift;
+    const remark = queueRemark(s.queue, s.t);
     const want = new Map();
     s.customers.forEach((c, i) => c && want.set(c.id, { cust: c, pos: SPOT.slots[i], slot: i }));
     s.queue.forEach((c, j) => want.set(c.id, { cust: c, pos: SPOT.queue[j], slot: -1 }));
@@ -335,8 +344,18 @@ export class GameScene extends Phaser.Scene {
       const faceUs = moving && dx + dy > 0;
       v.front.setVisible(faceUs); v.back.setVisible(!faceUs);
       flipArt(v, moving, dx - dy);
+      const waiting = v.slot < 0 && v.state !== 'leave' && !moving;
+      const impatient = waiting && s.t - v.cust.arrivedAt >= 12;
+      posePerson(v.front, this.time.now, v.id, moving, impatient);
+      posePerson(v.back, this.time.now, v.id, moving, impatient);
       v.bubble.setVisible(!moving && v.slot >= 0);
-      v.tag.setVisible(!moving && v.slot < 0 && v.state !== 'leave' && v.target === SPOT.queue[0]);
+      const speaking = waiting && remark?.id === v.id;
+      if (speaking) {
+        v.talkText.setText(t('queueRemark' + remark.variant));
+        v.talk.x = Math.max(-v.c.x + 125, Math.min(0, W - 125 - v.c.x));
+      }
+      v.talk.setVisible(speaking);
+      v.tag.setVisible(waiting && !speaking && v.target === SPOT.queue[0]);
       if (v.state === 'leave' && !moving) {
         this.people.delete(v.id);
         this.tweens.add({ targets: v.c, alpha: 0, duration: 250, onComplete: () => v.c.destroy() });
@@ -362,6 +381,8 @@ export class GameScene extends Phaser.Scene {
     if (nz && nz.state === 'inflating') { sfx.inflateStart(); sfx.inflateLevel(nz.fill); } else sfx.inflateStop();
     this.syncPeople(deltaMs / 1000);
     this.moveCouriers(deltaMs / 1000);
+    posePerson(this.sellerG, this.time.now, 2);
+    posePerson(this.helperG, this.time.now, 4, !!this.shift.helper?.cust);
     this.renderDynamic(deltaMs / 1000);
   }
 
