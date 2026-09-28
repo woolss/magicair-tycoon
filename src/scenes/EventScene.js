@@ -117,7 +117,8 @@ export class EventScene extends Phaser.Scene {
   // ---------- інтерфейс ----------
   pill(x, y, w, h, color = C.white) {
     const g = this.add.graphics().setDepth(100);
-    g.fillStyle(0x3a1f45, 0.25).fillRoundedRect(x, y + 4, w, h, h / 2).fillStyle(color, 1).fillRoundedRect(x, y, w, h, h / 2);
+    const radius = Math.min(w, h) / 2;
+    g.fillStyle(0x3a1f45, 0.25).fillRoundedRect(x, y + 4, w, h, radius).fillStyle(color, 1).fillRoundedRect(x, y, w, h, radius);
     return g;
   }
 
