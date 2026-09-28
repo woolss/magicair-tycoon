@@ -80,7 +80,7 @@ function unP(sx, sy, y) {
 }
 const SLOTS0 = SPOT.slots.map((p) => [...p]);   // місця біля прилавка без зсуву
 // З арт-прилавком: сопло — його верх, товар лежить на нижчій стільниці; продавці й місця покупців зсуваються разом із прилавком (черга лишається)
-function useCounterArt(rich) {
+function useCounterArt(rich, revised = false) {
   counterFoot = rich ? COUNTER_ART.at.shop : COUNTER_ART.at.point;
   const dy = counterFoot[1] - 5.9, z = COUNTER_ART.top, [tx, ty] = counterAt(...COUNTER_ART.tip);
   Object.assign(SPOT, {
@@ -88,6 +88,15 @@ function useCounterArt(rich) {
     seller: [5.0, 3.8 + dy], helper: [7.1, 3.8 + dy],
     slots: SLOTS0.map(([x, y]) => [x, y + dy]),
   });
+  // Коробка на вільному правому краю нового арту; руки кур'єра поруч із нею.
+  if (revised) {
+    const [bx, by] = counterAt(1120, 700);
+    SPOT.box = unP(bx, by, 5.2 + dy);
+    const sum = (by + 90 - ISO.OY) / (ISO.S * 0.5);
+    const diff = (bx + 34 - ISO.OX) / (C30 * ISO.S);
+    SPOT.courier = [(sum + diff) / 2, (sum - diff) / 2];
+  } else SPOT.courier = [11.5, 2.8];
+  SPOT.courierFrom = [SPOT.courier[0] + 5, SPOT.courier[1] - 2];
 }
 
 // Кімната з арт-фоном: фон + товар на його полицях + неон
@@ -113,7 +122,7 @@ function drawArtRoom(scene, rich, key) {
 
 // Неонова вивіска на рожевій стіні: текст зі зсувом під кут стіни (як намальований на ній)
 function drawNeon(scene, rich) {
-  const [sx, sy] = P(3.4, 0, 5.0);
+  const [sx, sy] = P(3.2, 0, 4.7);
   const neon = rich ? 'neon2' : 'neon';
   if (!scene.textures.exists(neon)) {
     const tex = scene.textures.createCanvas(neon, 440, 330);
@@ -123,7 +132,7 @@ function drawNeon(scene, rich) {
     const word = scene.textures.exists('logo-word') && scene.textures.get('logo-word').getSourceImage();
     if (word) {
       // напис із лого MagicAir в один рядок
-      const h = 58, w = (word.width / word.height) * h;
+      const h = 50, w = (word.width / word.height) * h;
       ctx.drawImage(word, 10, 30, w, h); ctx.drawImage(word, 10, 30, w, h);
     } else {
       ctx.font = '900 60px Nunito, Arial, sans-serif';
@@ -138,8 +147,10 @@ function drawNeon(scene, rich) {
 
 // Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
 export function drawRoom(scene, rich = false) {
-  if (scene.textures.exists('counter')) useCounterArt(rich);
-  const key = rich ? 'bg-shop' : 'bg-point';
+  const revised = scene.textures.exists('counter-v2');
+  if (revised || scene.textures.exists('counter')) useCounterArt(rich, revised);
+  const updatedKey = rich ? 'room-shop' : 'room-point';
+  const key = scene.textures.exists(updatedKey) ? updatedKey : rich ? 'bg-shop' : 'bg-point';
   if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key);
   const g = scene.add.graphics().setDepth(0);
   const R = 13, WH = 6, F = 19;
@@ -211,9 +222,10 @@ export function drawRoom(scene, rich = false) {
 
 // Прилавок, каса, сопло зі шлангом — перед продавцем
 export function drawCounter(scene, tankTop) {
-  if (scene.textures.exists('counter')) {
+  const key = scene.textures.exists('counter-v2') ? 'counter-v2' : 'counter';
+  if (scene.textures.exists(key)) {
     const [x, y] = counterAt(0, 0), { s, w, h } = COUNTER_ART;
-    return scene.add.image(x, y, 'counter').setOrigin(0).setDisplaySize(w * s, h * s).setDepth(2);
+    return scene.add.image(x, y, key).setOrigin(0).setDisplaySize(w * s, h * s).setDepth(2);
   }
   const g = scene.add.graphics().setDepth(2);
   box(g, [1.8, 11.2, 4.6, 5.9, 0, 2.0], 0xfff1f8, C.purple, 0x9a2c9c);
