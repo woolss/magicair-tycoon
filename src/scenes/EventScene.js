@@ -3,6 +3,7 @@ import { t, itemName } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { EventShift } from '../event.js';
 import { saveRun } from '../run.js';
+import { recordMissionEvent } from '../missions.js';
 import { backdrop, button, card, coinIcon, confettiRain, countUp } from '../ui.js';
 import * as sfx from '../sfx.js';
 
@@ -306,9 +307,11 @@ export class EventScene extends Phaser.Scene {
     this.ended = true;
     sfx.inflateStop();
     const run = this.run, gap = CONFIG.event.gapDays;
+    const mission = recordMissionEvent(run, { type: 'eventResult', done: res.done, stars: res.stars });
+    const missionBonus = mission.bonus;
     const next = {
-      ...run,
-      money: Math.max(0, run.money + res.profit),
+      ...mission.run,
+      money: Math.max(0, run.money + res.profit) + missionBonus,
       stock: { ...run.stock, ...this.ev.stock },
       booking: null,
       eventsDone: (run.eventsDone || 0) + 1,
@@ -325,13 +328,13 @@ export class EventScene extends Phaser.Scene {
       if (res.stars === 3) confettiRain(this, 50, 190);
     } else sfx.leave();
 
-    this.time.delayedCall(res.done ? 1600 : 400, () => this.showResult(res, run.money, next.money));
+    this.time.delayedCall(res.done ? 1600 : 400, () => this.showResult(res, run.money, next.money, missionBonus));
   }
 
-  showResult(res, before, after) {
+  showResult(res, before, after, missionBonus = 0) {
     const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x2a1238, 0.25).setDepth(250).setInteractive();
     const g = this.add.graphics().setDepth(251);
-    const top = 600, h = 500;   // нижче, щоб над карткою було видно готову арку
+    const top = 570, h = 540;   // нижче, щоб над карткою було видно готову арку
     card(g, 60, top, W - 120, h, 32);
     const add = (o) => o.setDepth(252);
     add(this.add.text(W / 2, top + 50, res.done ? t('eventDone') : t('eventFail', { a: res.placed, b: res.total }), txt(38, res.done ? C.purple : C.red)).setOrigin(0.5));
@@ -355,7 +358,8 @@ export class EventScene extends Phaser.Scene {
     add(this.add.text(110, top + 385, t('profit'), txt(36, C.ink)).setOrigin(0, 0.5));
     const pv = add(this.add.text(W - 110, top + 385, '', txt(40, res.profit >= 0 ? C.green : C.red)).setOrigin(1, 0.5));
     countUp(this, pv, res.profit, { delay: 1100, duration: 450, fmt: (n) => `${n >= 0 ? '+' : '−'}${Math.abs(n)} ₴` });
-    const mv = add(this.add.text(W / 2, top + 452, '', txt(30, C.magenta)).setOrigin(0.5));
+    if (missionBonus) add(this.add.text(W / 2, top + 440, t('missionReward', { n: missionBonus }), txt(25, C.green)).setOrigin(0.5));
+    const mv = add(this.add.text(W / 2, top + 495, '', txt(30, C.magenta)).setOrigin(0.5));
     countUp(this, mv, after, { from: before, delay: 1500, duration: 500, fmt: (n) => `${t('money')}: ${n} ₴` });
     const btn = button(this, W / 2, 1180, 520, 110, t('toShop'), () => this.scene.start('shop')).setDepth(253).setAlpha(0);
     btn.disableInteractive();

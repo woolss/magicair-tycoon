@@ -3,6 +3,7 @@ import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
+import { availableMissions, missionProgress, recordMissionEvent } from '../missions.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
@@ -58,6 +59,8 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     this.run = this.registry.get('run');
+    this.missionRun = this.run;
+    this.missionBonus = 0;
     const opts = this.registry.get('opts') || {};
     const rng = opts.seed != null ? makeRng(opts.seed + this.run.day) : Math.random;
     this.shift = new Shift(CONFIG, { rng, shiftSec: opts.shift, owned: this.run.owned, stock: this.run.stock });
@@ -209,10 +212,11 @@ export class GameScene extends Phaser.Scene {
     // затемнення з табличкою; ловить усі дотики, поки пауза
     const dim = this.add.rectangle(W / 2, 640, W, 1280, 0x2a1238, 0.55).setDepth(400).setInteractive();
     const card = this.add.graphics();
-    card.fillStyle(0x3a1f45, 0.25).fillRoundedRect(-230, -150, 460, 300, 40).fillStyle(C.white, 1).fillRoundedRect(-230, -160, 460, 300, 40);
-    const title = this.add.text(0, -80, t('paused'), txt(56, C.purple)).setOrigin(0.5);
-    const resume = button(this, 0, 40, 340, 100, t('resume'), () => this.setPaused(false), C.green, 38);
-    this.pauseBox = this.add.container(W / 2, 600, [card, title, resume]).setDepth(401);
+    card.fillStyle(0x3a1f45, 0.25).fillRoundedRect(-310, -250, 620, 510, 40).fillStyle(C.white, 1).fillRoundedRect(-310, -260, 620, 510, 40);
+    const title = this.add.text(0, -208, t('paused'), txt(48, C.purple)).setOrigin(0.5);
+    this.pauseTasks = this.add.text(0, -140, '', txt(23, C.ink, { align: 'center', lineSpacing: 11, wordWrap: { width: 540 } })).setOrigin(0.5, 0);
+    const resume = button(this, 0, 183, 340, 90, t('resume'), () => this.setPaused(false), C.green, 34);
+    this.pauseBox = this.add.container(W / 2, 600, [card, title, this.pauseTasks, resume]).setDepth(401);
     this.pauseLayer = [dim, this.pauseBox];
     this.pauseLayer.forEach((o) => o.setVisible(false));
     this.paused = false;
@@ -221,7 +225,14 @@ export class GameScene extends Phaser.Scene {
   setPaused(on) {
     if (this.ending || this.paused === on) return;
     this.paused = on;
-    if (on) { this.shift.release(); sfx.inflateStop(); }
+    if (on) {
+      this.shift.release(); sfx.inflateStop();
+      const active = availableMissions(this.missionRun).filter((m) => !this.missionRun.missions?.completed?.includes(m.id));
+      this.pauseTasks.setText([t('missionsTitle'), ...active.slice(0, 4).map((m) =>
+        `${t('mission_' + m.id)}  ${missionProgress(this.missionRun, m)}/${m.goal}`),
+      ...(active.length > 4 ? [t('missionsMore', { n: active.length - 4 })] : []),
+      ...(active.length ? [] : [t('missionsDone')])].join('\n'));
+    }
     this.pauseLayer.forEach((o) => o.setVisible(on));
     if (on) {
       this.pauseBox.setScale(0.6);
@@ -358,6 +369,11 @@ export class GameScene extends Phaser.Scene {
 
   onEvent(e) {
     const s = this.shift;
+    if (this.missionRun && (e.type === 'sale' || e.type === 'onlinePacked')) {
+      const result = recordMissionEvent(this.missionRun, e);
+      this.missionRun = result.run;
+      this.missionBonus += result.bonus;
+    }
     switch (e.type) {
       case 'chooseDigitCustomer': this.floatText(W / 2, 980, t('chooseDigitCustomer'), C.purple); break;
       case 'digitSelected': this.floatText(W / 2, 980, t('digitSelected', { n: e.age }), C.purple); break;
@@ -441,7 +457,10 @@ export class GameScene extends Phaser.Scene {
         for (const b of s.bundle) back[b.key]++;
         if (s.helper && s.helper.taken) for (const k of s.helper.taken) back[k]++;
         const sum = summarize(CONFIG, s.stats, this.run.money);
-        const run = endDay(this.run, sum, back);
+        sum.missionBonus = this.missionBonus;
+        sum.profit += this.missionBonus;
+        sum.moneyAfter += this.missionBonus;
+        const run = endDay(this.missionRun, sum, back);
         this.registry.set('run', run);
         saveRun(run);
         this.showShiftOver(() => this.scene.start('summary', { day: this.run.day, sum }));

@@ -4,13 +4,14 @@ import { CONFIG } from '../config.js';
 import { deriveParams } from '../logic.js';
 import { buyStock, buyUpgrade, upgradeState, stockCost, stockRoom, saveRun } from '../run.js';
 import { makeBooking, bookingShort } from '../event.js';
+import { availableMissions, missionProgress } from '../missions.js';
 import { backdrop, button, card, coinIcon, upIcon, upgradeArt, soundToggle, countUp } from '../ui.js';
 import * as sfx from '../sfx.js';
 
 const STEP = 5; // закупівля по 5 штук
-const TABS = { stock: 147, upgrades: 360, shop: 573 };
-const TAB_W = 212;
-const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop' };
+const TABS = { stock: 125, upgrades: 285, shop: 445, missions: 605 };
+const TAB_W = 165;
+const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop', missions: 'tabMissions' };
 const STAGE3 = ['shop', 'digits', 'helper', 'helper2', 'ads', 'car'];   // вкладка «Магазин»
 
 // Між змінами: закупівля товару і апгрейди
@@ -20,6 +21,7 @@ export class ShopScene extends Phaser.Scene {
   create() {
     backdrop(this);
     this.tab = 'stock';
+    this.missionPage = 0;
     this.pending = {};
     this.content = this.add.container(0, 0);
 
@@ -40,7 +42,7 @@ export class ShopScene extends Phaser.Scene {
     this.tabHi = this.add.graphics();
     this.tabTexts = {};
     for (const [id, x] of Object.entries(TABS)) {
-      this.tabTexts[id] = this.add.text(x, 206, t(TAB_LABEL[id]), txt(27, C.purple)).setOrigin(0.5);
+      this.tabTexts[id] = this.add.text(x, 206, t(TAB_LABEL[id]), txt(id === 'missions' ? 22 : 25, C.purple)).setOrigin(0.5);
       this.add.zone(x, 206, TAB_W, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         if (this.tab === id) return;
         sfx.click();
@@ -142,7 +144,29 @@ export class ShopScene extends Phaser.Scene {
     this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(TABS[this.tab] - TAB_W / 2 + 4, 174, TAB_W - 8, 64, 32);
     for (const [id, tx] of Object.entries(this.tabTexts)) tx.setColor(id === this.tab ? '#ffffff' : '#b338b5');
     if (this.tab === 'stock') this.renderStock(run);
+    else if (this.tab === 'missions') this.renderMissions(run);
     else this.renderUpgrades(run, CONFIG.upgrades.filter((u) => (this.tab === 'shop') === STAGE3.includes(u.id)));
+  }
+
+  renderMissions(run) {
+    const available = availableMissions(run);
+    const pages = Math.max(1, Math.ceil(available.length / 6));
+    this.missionPage = Math.min(this.missionPage, pages - 1);
+    available.slice(this.missionPage * 6, this.missionPage * 6 + 6).forEach((m, i) => {
+      const y = 315 + i * 115, done = run.missions?.completed?.includes(m.id);
+      const g = this.cardAt(y, 104);
+      g.fillStyle(done ? 0xe3f8ea : 0xfff0fb, 1).fillCircle(86, y, 33);
+      this.content.add(this.add.text(86, y, done ? '✓' : '★', txt(31, done ? C.green : C.gold)).setOrigin(0.5));
+      this.content.add(this.add.text(135, y - 27, t('mission_' + m.id), txt(24, C.ink)).setOrigin(0, 0.5));
+      this.content.add(this.add.text(135, y + 10, t('missionDesc_' + m.id), txt(18, C.greyDark, { wordWrap: { width: 380 } })).setOrigin(0, 0.5));
+      this.content.add(this.add.text(620, y - 15, done ? t('owned') : `+${m.reward} ₴`, txt(24, done ? C.green : C.purple)).setOrigin(0.5));
+      this.content.add(this.add.text(620, y + 20, `${missionProgress(run, m)}/${m.goal}`, txt(20, C.greyDark)).setOrigin(0.5));
+    });
+    if (pages > 1) {
+      this.content.add(button(this, 250, 1050, 140, 60, '‹', () => { this.missionPage = Math.max(0, this.missionPage - 1); this.render(); }, C.purple, 32));
+      this.content.add(this.add.text(W / 2, 1050, `${this.missionPage + 1}/${pages}`, txt(24, C.ink)).setOrigin(0.5));
+      this.content.add(button(this, 470, 1050, 140, 60, '›', () => { this.missionPage = Math.min(pages - 1, this.missionPage + 1); this.render(); }, C.purple, 32));
+    }
   }
 
   cardAt(y, h) {

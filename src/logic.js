@@ -450,7 +450,8 @@ export class Shift {
     this.stats.served++;
     this.bundle = rest;
     this.customers[slot] = null;
-    this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip });
+    this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip,
+      green: this.t - cust.seatedAt < this.p.patienceSec / 2 });
     return { value, tip };
   }
 }

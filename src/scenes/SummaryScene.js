@@ -46,6 +46,7 @@ export class SummaryScene extends Phaser.Scene {
     const rows = [
       [t('revenue'), s.revenue, '+', C.ink],
       [t('tips'), s.tips, '+', C.ink],
+      ...(s.missionBonus ? [[t('missionsTitle'), s.missionBonus, '+', C.green]] : []),
       [t('heliumCost'), s.helium, '−', C.greyDark],
       [t('rent'), s.rent, '−', C.greyDark],
       [t('salary'), s.salary, '−', C.greyDark],
