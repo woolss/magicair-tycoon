@@ -33,6 +33,9 @@ export class EventScene extends Phaser.Scene {
     this.drawVenue();
     this.drawArch();
     this.slotView = this.b.slots.map(() => null);
+    if (this.textures.exists('event-inflator')) {
+      this.add.image(NOZ.x, NOZ.y + 19, 'event-inflator').setDisplaySize(110, 104).setDepth(19);
+    }
     this.nzG = this.add.graphics().setDepth(20);
     this.flyG = this.add.container(0, 0).setDepth(25);
     this.buildHud();
@@ -70,11 +73,15 @@ export class EventScene extends Phaser.Scene {
   get balloonR() { const n = this.b.slots.length; return Math.min(30, ((Math.PI * ARCH.r) / (n - 1)) * 0.56); }
 
   drawArch() {
-    const g = this.add.graphics().setDepth(2);
-    // каркас: дуга і дві стійки
-    g.lineStyle(10, 0xc9c3d2, 1).beginPath().arc(ARCH.x, ARCH.y, ARCH.r, Math.PI, 0, false).strokePath();
-    g.fillStyle(0xc9c3d2, 1).fillRect(ARCH.x - ARCH.r - 5, ARCH.y, 10, 230).fillRect(ARCH.x + ARCH.r - 5, ARCH.y, 10, 230);
-    g.fillStyle(0xa79fb3, 1).fillRoundedRect(ARCH.x - ARCH.r - 34, ARCH.y + 222, 68, 18, 6).fillRoundedRect(ARCH.x + ARCH.r - 34, ARCH.y + 222, 68, 18, 6);
+    if (this.textures.exists('event-arch-frame')) {
+      // Контур спрайта суміщений з точками slotPos; кульки малюються перед каркасом.
+      this.add.image(-25, 405, 'event-arch-frame').setOrigin(0).setDisplaySize(788, 615).setDepth(2);
+    } else {
+      const g = this.add.graphics().setDepth(2);
+      g.lineStyle(10, 0xc9c3d2, 1).beginPath().arc(ARCH.x, ARCH.y, ARCH.r, Math.PI, 0, false).strokePath();
+      g.fillStyle(0xc9c3d2, 1).fillRect(ARCH.x - ARCH.r - 5, ARCH.y, 10, 230).fillRect(ARCH.x + ARCH.r - 5, ARCH.y, 10, 230);
+      g.fillStyle(0xa79fb3, 1).fillRoundedRect(ARCH.x - ARCH.r - 34, ARCH.y + 222, 68, 18, 6).fillRoundedRect(ARCH.x + ARCH.r - 34, ARCH.y + 222, 68, 18, 6);
+    }
     // місця під кульки: пунктир потрібного кольору
     this.ghost = this.add.graphics().setDepth(3);
     this.ghostTexts = [];
@@ -261,7 +268,7 @@ export class EventScene extends Phaser.Scene {
     if (!nz || this.pickAnim) artSlot(this, 'nz', null);
     if (nz && !this.pickAnim) {
       const r = 14 + nz.fill * 62;
-      g.fillStyle(0x7c8a99, 1).fillRoundedRect(NOZ.x - 8, NOZ.y - 22, 16, 22, 4);
+      if (!this.textures.exists('event-inflator')) g.fillStyle(0xb338b5, 1).fillRoundedRect(NOZ.x - 8, NOZ.y - 22, 16, 22, 4);
       if (artSlot(this, 'nz', ITEM(nz.key), NOZ.x, NOZ.y - 22, r / 50, 20, true, this.b.age || 7)) { /* арт-кулька */ }
       else if (nz.key === 'digit') g.fillStyle(0xffc21a, 1).fillCircle(NOZ.x, NOZ.y - 22 - r, r * 0.8);
       else drawItem(g, ITEM(nz.key), NOZ.x, NOZ.y - 22 - r, r);

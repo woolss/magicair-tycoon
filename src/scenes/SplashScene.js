@@ -22,6 +22,8 @@ export class SplashScene extends Phaser.Scene {
       this.load.image(`up-${id}`, `assets/up-${id}.png`);
     }
     this.load.image('event-van', 'assets/event-van.png');
+    this.load.image('event-arch-frame', 'assets/event-arch-frame.png');
+    this.load.image('event-inflator', 'assets/event-inflator.png');
     for (const k of ['seller', 'helper', 'courier', 'courierb', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c1b', 'c2b', 'c3b', 'c4b', 'c5b', 'c6b']) this.load.image(`ch-${k}`, `assets/ch-${k}.png`);   // арт-персонажі (…b — спиною)
   }
 
