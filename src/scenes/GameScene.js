@@ -244,7 +244,12 @@ export class GameScene extends Phaser.Scene {
     this.drawBubble(bubble, cust);
     c.setInteractive(new Phaser.Geom.Rectangle(-60, -250, 120, 250), Phaser.Geom.Rectangle.Contains);
     const v = { id: cust.id, c, front, back, hands, bubble, bar, tag, cust, pos: [...SPOT.door], target: null, path: [[...SPOT.door]], slot: -1, state: 'in' };
-    c.on('pointerdown', () => { if (v.slot >= 0) this.shift.give(v.slot); });
+    c.on('pointerdown', () => {
+      if (v.slot < 0) return;
+      const s = this.shift;
+      if (v.cust.order.digit && !bundleCovers(v.cust.order, s.bundle, v.cust.age)) s.selectDigitCustomer(v.slot);
+      else s.give(v.slot);
+    });
     this.people.set(cust.id, v);
     sfx.arrive();
     return v;
@@ -354,6 +359,8 @@ export class GameScene extends Phaser.Scene {
   onEvent(e) {
     const s = this.shift;
     switch (e.type) {
+      case 'chooseDigitCustomer': this.floatText(W / 2, 980, t('chooseDigitCustomer'), C.purple); break;
+      case 'digitSelected': this.floatText(W / 2, 980, t('digitSelected', { n: e.age }), C.purple); break;
       case 'leave': {
         const v = this.people.get(e.id);
         if (v) { this.floatText(v.c.x, v.c.y - 250, e.noStock ? t('noStock') : '☹', C.red); v.shakeAt = this.time.now; }
@@ -368,8 +375,8 @@ export class GameScene extends Phaser.Scene {
           items.forEach((k, i) => {
             const bx = 34 + (i % 3) * 16, by = -150 - i * 14;
             v.hands.lineStyle(1.5, 0x7a6a80, 1).lineBetween(30, -58, bx, by + 16);
-            const art = itemArt(this, ITEM(k), bx, by, 15);
-            if (art) v.c.add(art); else drawItem(v.hands, ITEM(k), bx, by, 15);
+            const art = itemArt(this, ITEM(k), bx, by, 15, 1, e.age);
+            if (art) v.c.add(art); else drawItem(v.hands, ITEM(k), bx, by, 15, 1, e.age);
           });
           this.floatText(v.c.x, v.c.y - 250, `+${e.value}` + (e.tip ? ` (+${e.tip})` : '') + ' ₴', C.green);
           v.hopAt = this.time.now;
@@ -456,7 +463,7 @@ export class GameScene extends Phaser.Scene {
       const x = bx + (i - (b.length - 1) / 2) * 26, y = by - 62 - (i % 2) * 18;
       strings.lineStyle(1.5, 0x7a6a80, 1).lineBetween(bx, by - 6, x, y + 16);
       const perfect = ball.quality === 'perfect';
-      let g = itemArt(this, ITEM(ball.key), 0, 0, perfect ? 19 : 15, perfect ? 1 : 0.7);
+      let g = itemArt(this, ITEM(ball.key), 0, 0, perfect ? 19 : 15, perfect ? 1 : 0.7, ball.age);
       if (!g) { g = this.add.graphics(); drawItem(g, ITEM(ball.key), 0, 0, perfect ? 16 : 13, perfect ? 1 : 0.7); }
       const item = this.add.container(x, y, [g]).setSize(30, 40).setInteractive();
       item.on('pointerdown', () => this.shift.discard(i));
@@ -527,7 +534,8 @@ export class GameScene extends Phaser.Scene {
       v.bubble.angle = f < 0.25 && !c.noStock && !c.helper ? Math.sin(this.time.now / 55) * 5 : 0;   // скоро піде — хмаринка тремтить
       const { w, h } = v.bubble, top = BUBBLE_Y - h;
       v.bar.clear();
-      if (s.bundle.length && !c.noStock && !c.helper && bundleCovers(c.order, s.bundle)) {
+      if (c.id === s.digitCustomerId && !c.helper) v.bar.lineStyle(3, C.purple, 0.85).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
+      if (s.bundle.length && !c.noStock && !c.helper && bundleCovers(c.order, s.bundle, c.age)) {
         v.bar.lineStyle(6, C.green, 0.6 + 0.4 * Math.sin(this.time.now / 120)).strokeRoundedRect(-w / 2 - 3, top - 3, w + 6, h + 6, 19);
         readyFor = true;
       }
@@ -550,7 +558,7 @@ export class GameScene extends Phaser.Scene {
     let hint = t('pickBalloon');
     if (this.pickAnim) {
       const k = this.pickAnim.t, px = this.pickAnim.x + (nx - this.pickAnim.x) * k, py = this.pickAnim.y + (ny - 30 - this.pickAnim.y) * k;
-      if (!artSlot(this, 'pick', ITEM(this.pickAnim.key), px, py, 20 / 50)) drawItem(g, ITEM(this.pickAnim.key), px, py, 20);
+      if (!artSlot(this, 'pick', ITEM(this.pickAnim.key), px, py, 20 / 50, 3, false, nz?.age)) drawItem(g, ITEM(this.pickAnim.key), px, py, 20);
       hint = '';
     } else artSlot(this, 'pick', null);
     this.nzG.clear().setVisible(!!nz && !this.pickAnim);
@@ -564,12 +572,12 @@ export class GameScene extends Phaser.Scene {
       if (nz.state === 'inflating') { const w = Math.sin(this.time.now / 35) * 0.035; sx += w; sy -= w; }
       else if (k < 1) { const w = Math.sin(k * Math.PI * 3) * 0.2 * (1 - k); sx += w; sy -= w; }
       else if (nz.state === 'ready') { const w = Math.sin(this.time.now / 260) * 0.02; sx -= w; sy += w; }
-      const art = artSlot(this, 'nz', ITEM(nz.key), nx, ny - 22, 1, 3, true);
+      const art = artSlot(this, 'nz', ITEM(nz.key), nx, ny - 22, 1, 3, true, nz.age);
       if (art) art.setScale((sx * r) / 50, (sy * r) / 50);
       else { drawItem(this.nzG, ITEM(nz.key), 0, -r, r); this.nzG.setPosition(nx, ny - 22).setScale(sx, sy); }
     }
     if (!this.pickAnim && nz) {
-      hint = nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
+      hint = nz.key === 'digit' && !nz.paid && s.digitAge() == null ? t('chooseDigitCustomer') : nz.state === 'ready' ? t('tapToTie') : nz.state === 'empty' ? t('hold') : '';
     }
     // онлайн-чек: смужка часу й підсвітка, коли зв'язка підходить
     const tb = this.ticketBar.clear();

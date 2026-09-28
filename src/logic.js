@@ -89,9 +89,12 @@ export function bundleMatches(order, bundle) {
 }
 
 // Чи є в зв'язці все, що потрібно клієнту (зайві кульки лишаються на прилавку)
-export function bundleCovers(order, bundle) {
+export function bundleCovers(order, bundle, age) {
   const have = {};
-  for (const b of bundle) have[b.key] = (have[b.key] || 0) + 1;
+  for (const b of bundle) {
+    if (b.key === 'digit' && age != null && b.age != null && b.age !== age) continue;
+    have[b.key] = (have[b.key] || 0) + 1;
+  }
   return Object.entries(order).every(([k, n]) => (have[k] || 0) >= n);
 }
 
@@ -229,7 +232,7 @@ export class Shift {
       if (slot >= 0) {
         this.customers[slot] = null;
         this.stats.revenue += value; this.stats.served++; this.stats.helperServed++;
-        this.emit('sale', { slot, id: cust.id, order: cust.order, value, tip: 0, helper: true });
+        this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip: 0, helper: true });
       }
     }
     if (hp && !hp.cust) {
@@ -287,6 +290,23 @@ export class Shift {
     }
   }
 
+  digitAge() {
+    const candidates = this.customers.filter(c => c && c.order.digit && !c.helper && !c.noStock);
+    const chosen = candidates.find(c => c.id === this.digitCustomerId);
+    if (chosen) return chosen.age ?? 7;
+    const ages = [...new Set(candidates.map(c => c.age ?? 7))];
+    return ages.length > 1 ? null : ages[0] ?? 7;
+  }
+
+  selectDigitCustomer(slot) {
+    const c = this.customers[slot];
+    if (!c || !c.order.digit || c.helper || c.noStock) return false;
+    this.digitCustomerId = c.id;
+    if (this.nozzle?.key === 'digit' && !this.nozzle.paid) this.nozzle.age = c.age ?? 7;
+    this.emit('digitSelected', { age: c.age ?? 7 });
+    return true;
+  }
+
   // Тап по товару на полиці
   pick(key) {
     if (this.over || !(key in this.stock)) return false;
@@ -298,6 +318,7 @@ export class Shift {
     if (nz) { this.stock[nz.key]++; this.nozzle = null; }
     this.stock[key]--;
     this.nozzle = { key, fill: 0, state: 'empty', quality: null };
+    if (key === 'digit') this.nozzle.age = this.digitAge();
     this.emit('pick', { key });
     return true;
   }
@@ -306,6 +327,10 @@ export class Shift {
   startInflate() {
     const nz = this.nozzle;
     if (this.over || !nz || nz.state !== 'empty') return false;
+    if (nz.key === 'digit' && !nz.paid) {
+      nz.age = this.digitAge();
+      if (nz.age == null) { this.emit('chooseDigitCustomer'); return false; }
+    }
     // гелій списуємо один раз на кульку; додування — без нового списання
     if (!nz.paid) {
       const he = this.cfg.items[nz.key].helium;
@@ -356,7 +381,7 @@ export class Shift {
     const nz = this.nozzle;
     if (!nz || nz.state !== 'ready') return false;
     if (this.bundle.length >= this.cfg.bundleMax) { this.emit('bundleFull'); return false; }
-    this.bundle.push({ key: nz.key, quality: nz.quality });
+    this.bundle.push({ key: nz.key, quality: nz.quality, ...(nz.key === 'digit' ? { age: nz.age ?? 7 } : {}) });
     this.nozzle = null;
     this.emit('tie', { index: this.bundle.length - 1 });
     return true;
@@ -399,10 +424,10 @@ export class Shift {
   }
 
   // Зі зв'язки беремо лише потрібне замовленню, решта лишається на прилавку
-  takeFromBundle(order) {
+  takeFromBundle(order, age) {
     const need = { ...order }, taken = [], rest = [];
     for (const b of this.bundle) {
-      if (need[b.key] > 0) { need[b.key]--; taken.push(b); } else rest.push(b);
+      if (need[b.key] > 0 && (b.key !== 'digit' || age == null || b.age == null || b.age === age)) { need[b.key]--; taken.push(b); } else rest.push(b);
     }
     return { taken, rest };
   }
@@ -411,12 +436,12 @@ export class Shift {
   give(slot) {
     const cust = this.customers[slot];
     if (this.over || !cust || !this.bundle.length || cust.helper) return null;
-    if (!bundleCovers(cust.order, this.bundle)) {
+    if (!bundleCovers(cust.order, this.bundle, cust.age)) {
       this.emit('mismatch', { slot });
       return null;
     }
     // клієнт забирає тільки своє, зайві кульки лишаються на прилавку
-    const { taken, rest } = this.takeFromBundle(cust.order);
+    const { taken, rest } = this.takeFromBundle(cust.order, cust.age);
     const value = taken.reduce((s, b) => s + balloonPrice(this.cfg, b), 0);
     const fast = this.t - cust.seatedAt <= this.cfg.customers.tipIfWithinSec;
     const tip = fast ? Math.round(value * this.cfg.customers.tipMul) : 0;
@@ -425,7 +450,7 @@ export class Shift {
     this.stats.served++;
     this.bundle = rest;
     this.customers[slot] = null;
-    this.emit('sale', { slot, id: cust.id, order: cust.order, value, tip });
+    this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip });
     return { value, tip };
   }
 }
