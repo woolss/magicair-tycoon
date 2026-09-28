@@ -32,7 +32,7 @@ test('помічник не бере клієнта, поки той іде до
   assert.ok(c.helper);
 });
 
-test('після видачі замовлення помічниця чекає дві секунди, потім бере наступне', () => {
+test('після видачі замовлення помічниця чекає три секунди, потім бере наступне', () => {
   const s = mk(['shop', 'helper']);
   s.nextArrival = Infinity;
   s.customers[0] = { id: 1, order: { blue: 1 }, seatedAt: 0 };
@@ -41,9 +41,9 @@ test('після видачі замовлення помічниця чекає
   assert.equal(s.helper.cust.id, 1);
   s.update(cfg.helper.serveSec);
   assert.equal(s.helper.cust, null);
-  s.update(1.99);
+  s.update(2.99);
   assert.equal(s.helper.cust, null);
-  s.update(0.01);
+  s.update(0.02);
   assert.equal(s.helper.cust.id, 2);
 });
 
