@@ -4,7 +4,7 @@ import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { availableMissions, missionProgress, recordMissionEvent } from '../missions.js';
-import { posePerson, queueRemark, staffGesture } from '../characterMotion.js';
+import { posePerson, queueRemark, staffGesture, staffExpression } from '../characterMotion.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
@@ -55,6 +55,23 @@ const COURIER = { shirt: 0xff8a3d, pants: 0x2f2f44, skin: 0xf2c3a0, hair: 0x2b1a
 const HELPER = { shirt: 0xffffff, pants: 0x3f5f9e, skin: 0xe0ae88, hair: 0x1e1410, apron: C.purple, long: true };
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
 
+// Міміка лежить поверх незмінного арт-спрайта; координати — від його точки опори біля ніг.
+function makeStaffFaces(scene, who) {
+  const eyes = who === 'seller' ? [-18, 7] : [-19, 6];
+  const eyeY = who === 'seller' ? -123 : -122;
+  const focus = scene.add.graphics().setDepth(1.1).setVisible(false);
+  focus.lineStyle(2, 0x41232f, 0.9);
+  focus.beginPath().moveTo(eyes[0] - 5, eyeY - 10).lineTo(eyes[0] + 4, eyeY - 7)
+    .moveTo(eyes[1] - 4, eyeY - 7).lineTo(eyes[1] + 5, eyeY - 10).strokePath();
+  const happy = scene.add.graphics().setDepth(1.1).setVisible(false);
+  eyes.forEach((x, i) => {
+    happy.fillStyle(i ? 0xfbdbbb : 0xffe0bf, 1).fillEllipse(x, eyeY, 16, 18);
+    happy.lineStyle(2.7, 0x3a232d, 1).beginPath()
+      .moveTo(x - 5, eyeY + 1).lineTo(x, eyeY - 2).lineTo(x + 5, eyeY + 1).strokePath();
+  });
+  return { focus, happy };
+}
+
 export class GameScene extends Phaser.Scene {
   constructor() { super('game'); }
 
@@ -78,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.ending = false;
     this.couriers = [];
     this.staffMotion = {};
+    this.staffFaces = {};
     this.sellerPickedForOrder = false;
 
     this.cameras.main.setBackgroundColor(0x3b2250);
@@ -88,7 +106,7 @@ export class GameScene extends Phaser.Scene {
     const seller = personSprite(this, 'ch-seller');
     this.sellerG = seller;
     this.sellerHomeY = sy;
-    if (seller) seller.setPosition(sx, sy).setDepth(1);
+    if (seller) { seller.setPosition(sx, sy).setDepth(1); this.staffFaces.seller = makeStaffFaces(this, 'seller'); }
     else {
       const g = this.add.graphics().setDepth(1);
       drawPerson(g, SELLER, false);
@@ -98,7 +116,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.shift.helper) {
       let hg = personSprite(this, 'ch-helper');
-      if (hg) hg.setDepth(1);
+      if (hg) { hg.setDepth(1); this.staffFaces.helper = makeStaffFaces(this, 'helper'); }
       else { hg = this.add.graphics().setDepth(1); drawPerson(hg, HELPER, false); }
       const [hx, hy] = P(...SPOT.helper);
       hg.setPosition(hx, hy);
@@ -406,6 +424,14 @@ export class GameScene extends Phaser.Scene {
     const bob = working ? -Math.abs(Math.sin(this.time.now / 190)) * 2 : 0;
     sprite.y = (who === 'seller' ? this.sellerHomeY : this.helperHomeY) + bob + gesture.y;
     sprite.setAngle(sprite.angle + gesture.angle);
+    const face = this.staffFaces?.[who];
+    if (face) {
+      const expression = staffExpression(this.time.now, motion, working);
+      for (const [name, layer] of Object.entries(face)) {
+        layer.setVisible(name === expression);
+        if (name === expression) layer.setPosition(sprite.x, sprite.y).setScale(sprite.scaleX, sprite.scaleY).setAngle(sprite.angle);
+      }
+    }
   }
 
   barPos(key) { const sl = this.slots[this.keys.indexOf(key)]; return [sl.x, sl.y]; }

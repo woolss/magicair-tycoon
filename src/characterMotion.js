@@ -24,6 +24,17 @@ export function staffGesture(now, started, kind) {
   }
 }
 
+export function staffExpression(now, motion, working = false) {
+  if (motion) {
+    const duration = motion.kind === 'sale' ? 620 : motion.kind === 'tie' ? 460 : 380;
+    if (now >= motion.at && now - motion.at < duration) {
+      if (motion.kind === 'sale') return 'happy';
+      if (['start', 'pick', 'tie'].includes(motion.kind)) return 'focus';
+    }
+  }
+  return working ? 'focus' : null;
+}
+
 // Усі арт-спрайти — цільні PNG. Невеликий рух зберігає точку опори біля ніг.
 export function posePerson(sprite, t, seed, moving = false, impatient = false) {
   if (!sprite) return;

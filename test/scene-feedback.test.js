@@ -102,6 +102,46 @@ test('main seller leans once per order, helper sales do not reset the gesture', 
   assert.equal(gestures.filter(g => g.who === 'seller' && g.kind === 'pick').length, 2);
 });
 
+test('facial expression follows the seller sprite and returns to normal', () => {
+  const scene = new GameScene();
+  scene.time = { now: 1310 }; scene.shift = { helper: null }; scene.sellerHomeY = 300;
+  scene.sellerG = { x: 200, y: 300, angle: 1, scaleX: 0.85, scaleY: 0.85,
+    setAngle(angle) { this.angle = angle; return this; } };
+  const layer = () => ({ visible: false, setVisible(v) { this.visible = v; return this; },
+    setPosition(x, y) { this.x = x; this.y = y; return this; },
+    setScale(x, y) { this.scaleX = x; this.scaleY = y; return this; },
+    setAngle(angle) { this.angle = angle; return this; } });
+  const happy = layer(), focus = layer();
+  scene.staffFaces = { seller: { happy, focus } };
+  scene.staffMotion = { seller: { kind: 'sale', at: 1000 } };
+  scene.poseStaff('seller');
+  assert.equal(happy.visible, true);
+  assert.equal(focus.visible, false);
+  assert.equal(happy.x, scene.sellerG.x);
+  assert.equal(happy.y, scene.sellerG.y);
+  assert.equal(happy.angle, scene.sellerG.angle);
+  assert.equal(happy.scaleX, scene.sellerG.scaleX);
+  assert.equal(happy.scaleY, scene.sellerG.scaleY);
+  scene.time.now = 1700;
+  scene.poseStaff('seller');
+  assert.equal(happy.visible, false);
+
+  scene.helperHomeY = 310;
+  scene.helperG = { x: 240, y: 310, angle: -2, scaleX: 0.85, scaleY: 0.85,
+    setAngle(angle) { this.angle = angle; return this; } };
+  const helperFocus = layer(), helperHappy = layer();
+  scene.staffFaces.helper = { happy: helperHappy, focus: helperFocus };
+  scene.staffMotion.helper = { kind: 'start', at: 1650 };
+  scene.shift.helper = { cust: { id: 1 } };
+  scene.poseStaff('helper');
+  assert.equal(helperFocus.visible, true);
+  assert.equal(helperFocus.x, scene.helperG.x);
+  assert.equal(helperFocus.y, scene.helperG.y);
+  assert.equal(helperFocus.angle, scene.helperG.angle);
+  assert.equal(helperFocus.scaleX, scene.helperG.scaleX);
+  assert.equal(helperFocus.scaleY, scene.helperG.scaleY);
+});
+
 test('packing immediately redraws the remaining counter bundle', () => {
   const s = new Shift(CONFIG, { rng: makeRng(1), owned: ['foil', 'online'], stock: CONFIG.startStock });
   s.online = { id: 1, order: { pink: 1 }, at: 0, deadline: 75 };
