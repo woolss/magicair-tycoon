@@ -89,7 +89,7 @@ export function upgradeArt(scene, parent, id, x, y, size = 64) {
     pump2: 'up-pump', pump3: 'up-pump', sign: 'up-sign',
     confetti: 'up-confetti', foil: 'up-foil', online: 'up-online',
     tank200: 'up-tank200', shop: 'up-shop', helper: 'up-helper', helper2: 'up-helper',
-    ads: 'up-ads', car: 'up-car', digits: 'bl-digit',
+    ads: 'up-ads', car: 'up-car', // digits uses the gold 7 drawn by upIcon
   };
   const key = keys[id];
   if (!key || !scene.textures.exists(key)) return false;
