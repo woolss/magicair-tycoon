@@ -32,14 +32,16 @@ function barSlots(n) {
 const BUBBLE_Y = -168;                          // низ хмаринки над головою
 const WALK = 5;                                 // швидкість ходьби, клітинок/с
 const LANE = 10.8;                              // «прохід» між тими, хто біля прилавка, і чергою
+const ENTRY_X = 4.5;                            // поворот усередині екрана, із запасом на ширину персонажа
 
 // Маршрут через прохід: щоб не йти крізь людей, що вже стоять біля прилавка
-function route(from, to) {
+export function route(from, to) {
   const atDoor = (p) => p[0] < 1, atCounter = (p) => p[0] >= 1 && p[1] < LANE - 0.5;
   const pts = [];
-  if (atCounter(from)) pts.push([from[0], LANE]);
-  else if (atDoor(from)) pts.push([2, LANE]);
-  if (atDoor(to)) pts.push([2, LANE]);
+  // Під час зміни місця на ходу спочатку завершуємо вхід у прохід.
+  if (from[0] < ENTRY_X) pts.push([ENTRY_X, LANE]);
+  else if (atCounter(from)) pts.push([from[0], LANE]);
+  if (atDoor(to)) pts.push([ENTRY_X, LANE]);
   else if (atCounter(to)) pts.push([to[0], LANE]);
   pts.push(to);
   return pts;
@@ -59,6 +61,7 @@ export class GameScene extends Phaser.Scene {
     const opts = this.registry.get('opts') || {};
     const rng = opts.seed != null ? makeRng(opts.seed + this.run.day) : Math.random;
     this.shift = new Shift(CONFIG, { rng, shiftSec: opts.shift, owned: this.run.owned, stock: this.run.stock });
+    this.shift.waitWalk = true; // помічниця чекає фактичного підходу клієнта
     this.keys = this.shift.p.open;
     this.people = new Map();
     this.pickAnim = null;
@@ -303,6 +306,9 @@ export class GameScene extends Phaser.Scene {
       const step = Math.min(dist, WALK * dt);
       const moving = dist > 0.02;
       if (moving) { v.pos[0] += (dx / dist) * step; v.pos[1] += (dy / dist) * step; }
+      if (v.slot >= 0 && v.state !== 'leave') {
+        v.cust.walking = v.path.length > 1 || Math.hypot(wp[0] - v.pos[0], wp[1] - v.pos[1]) > 0.02;
+      }
       const [sx, sy] = P(v.pos[0], v.pos[1]);
       let bob = moving ? -Math.abs(Math.sin(this.time.now / 90)) * 4 : 0, shake = 0;
       const kh = (this.time.now - (v.hopAt || -1e9)) / 420;    // радіє — підстрибує
@@ -415,7 +421,7 @@ export class GameScene extends Phaser.Scene {
         this.floatText(TICKET.x + TICKET.w / 2, TICKET.y + TICKET.h + 30, t('mismatch'), C.red);
         sfx.wrong();
         break;
-      case 'onlinePacked': this.hideTicket(true); this.sendCourier(e.value + e.tip, e.tip); sfx.pack(); break;
+      case 'onlinePacked': this.renderBundle(); this.hideTicket(true); this.sendCourier(e.value + e.tip, e.tip); sfx.pack(); break;
       case 'onlineMissed':
         this.hideTicket(false);
         this.floatText(W - 230, TICKET.y + TICKET.h + 30, t('cancelled'), C.red);

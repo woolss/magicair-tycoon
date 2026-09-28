@@ -124,11 +124,14 @@ export function upIcon(g, id, x, y, s = 30) {
     return;
   }
   if (id === 'digits') { drawItem(g, CONFIG.items.digit, x, y, s * 0.72); return; }
-  if (id === 'helper') {
+  if (id === 'helper' || id === 'helper2') {
     g.fillStyle(0xf6c9a8, 1).fillCircle(x, y - s * 0.45, s * 0.34);
     g.fillStyle(0x2b1a12, 1).slice(x, y - s * 0.48, s * 0.36, Math.PI, 0, false).fillPath();
     g.fillStyle(C.purple, 1).fillRoundedRect(x - s * 0.55, y - s * 0.08, s * 1.1, s * 0.85, s * 0.3);
-    g.fillStyle(C.green, 1).fillCircle(x + s * 0.6, y - s * 0.6, s * 0.22);
+    g.fillStyle(id === 'helper2' ? C.gold : C.green, 1).fillCircle(x + s * 0.6, y - s * 0.6, s * 0.22);
+    if (id === 'helper2') g.lineStyle(2, C.white, 1)
+      .lineBetween(x + s * 0.53, y - s * 0.7, x + s * 0.53, y - s * 0.5)
+      .lineBetween(x + s * 0.67, y - s * 0.7, x + s * 0.67, y - s * 0.5);
     return;
   }
   if (id === 'ads') {

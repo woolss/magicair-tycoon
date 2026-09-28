@@ -11,7 +11,7 @@ const STEP = 5; // закупівля по 5 штук
 const TABS = { stock: 147, upgrades: 360, shop: 573 };
 const TAB_W = 212;
 const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop' };
-const STAGE3 = ['shop', 'digits', 'helper', 'ads', 'car'];   // вкладка «Магазин»
+const STAGE3 = ['shop', 'digits', 'helper', 'helper2', 'ads', 'car'];   // вкладка «Магазин»
 
 // Між змінами: закупівля товару і апгрейди
 export class ShopScene extends Phaser.Scene {

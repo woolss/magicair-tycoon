@@ -51,7 +51,7 @@ test('апгрейди: вивіска — частіше клієнти, бал
   const p0 = deriveParams(cfg, []);
   assert.deepEqual(p0.open, ['pink', 'blue', 'yellow']);
   const p = deriveParams(cfg, ALL);
-  assert.equal(p.gapSec, cfg.customers.baseGapSec / 1.15);
+  assert.equal(p.gapSec, cfg.customers.baseGapSec / (1.15 * cfg.shop.flow));
   assert.equal(p.tank, 200);
   assert.deepEqual(p.open, ['pink', 'blue', 'yellow', 'confetti', 'heart', 'star', 'digit']);
   // замовлення з закритим асортиментом — лише латекс
@@ -298,11 +298,11 @@ test('онлайн: не встиг — замовлення скасовуєт�
   assert.equal(s.stats.revenue, 0);
 });
 
-test('магазин: оренда 150, терпіння довше, потік клієнтів не росте', () => {
+test('магазин: оренда 150, терпіння довше, потік клієнтів +20%', () => {
   const p0 = deriveParams(cfg, ['foil']), p = deriveParams(cfg, ['foil', 'shop']);
   assert.equal(p.rent, 150);
   assert.equal(p.patienceSec, cfg.shop.patienceSec);
-  assert.equal(p.gapSec, p0.gapSec);
+  assert.equal(p.gapSec, p0.gapSec / cfg.shop.flow);
   const s = shift(4, { owned: ['foil', 'shop'] });
   s.update(1);
   const sum = summarize(cfg, s.stats, 0);
