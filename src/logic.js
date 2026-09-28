@@ -149,8 +149,6 @@ export class Shift {
     this.nextId = 1;
     this.nozzle = null;        // {key, fill, state: 'empty'|'inflating'|'ready', quality}
     this.bundle = [];          // [{key, quality}]
-    this.playerTargetId = null; // один клієнт, якому гравець збирає замовлення
-    this.targetManual = false;
     this.stock = {};
     for (const k of this.p.open) this.stock[k] = stock[k] || 0;
     this.helium = this.p.tank;
@@ -175,40 +173,6 @@ export class Shift {
     for (const b of this.bundle) have[b.key] = (have[b.key] || 0) + 1;
     if (this.nozzle) have[this.nozzle.key] = (have[this.nozzle.key] || 0) + 1;
     return Object.entries(order).every(([k, n]) => (have[k] || 0) >= n);
-  }
-
-  // Якщо гравець не вказав клієнта, прив'язуємо зв'язку лише до одного найближчого замовлення.
-  playerMatch(customer) {
-    const need = { ...customer.order };
-    let matched = 0;
-    for (const b of [...this.bundle, ...(this.nozzle ? [this.nozzle] : [])]) {
-      if (need[b.key] > 0 && (b.key !== 'digit' || b.age == null || customer.age == null || b.age === customer.age)) {
-        need[b.key]--;
-        matched++;
-      }
-    }
-    return matched;
-  }
-
-  selectTarget(slot) {
-    const customer = this.customers[slot];
-    if (!customer || customer.helper || customer.noStock) return false;
-    this.playerTargetId = customer.id;
-    this.targetManual = true;
-    return true;
-  }
-
-  currentPlayerTarget() {
-    const available = this.customers.filter((customer) => customer && !customer.helper && !customer.noStock);
-    const selected = available.find((customer) => customer.id === this.playerTargetId);
-    if (selected && (this.targetManual || this.playerMatch(selected))) return selected.id;
-    this.playerTargetId = null;
-    this.targetManual = false;
-    const ranked = available.map((customer) => ({ customer, score: this.playerMatch(customer) }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score || a.customer.seatedAt - b.customer.seatedAt);
-    this.playerTargetId = ranked[0]?.customer.id ?? null;
-    return this.playerTargetId;
   }
 
   seat(slot, cust) {
@@ -272,11 +236,9 @@ export class Shift {
         this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip: 0, helper: true });
       }
     }
-    const playerTargetId = this.currentPlayerTarget();
     if (hp && !hp.cust && this.t >= hp.readyAt) {
       const simple = (o) => Object.values(o).reduce((a, b) => a + b, 0) <= this.p.helperMax;
       const cust = this.customers.filter((x) => x && !x.noStock && !x.helper && !x.walking && simple(x.order)
-        && x.id !== playerTargetId
         && Object.entries(x.order).every(([k, n]) => this.stock[k] >= n)).sort((a, b) => a.seatedAt - b.seatedAt)[0];
       if (cust) {
         cust.helper = true;
@@ -489,7 +451,6 @@ export class Shift {
     this.stats.served++;
     this.bundle = rest;
     this.customers[slot] = null;
-    if (this.playerTargetId === cust.id) { this.playerTargetId = null; this.targetManual = false; }
     this.emit('sale', { slot, id: cust.id, order: cust.order, age: cust.age, value, tip,
       green: this.t - cust.seatedAt < this.p.patienceSec / 2 });
     return { value, tip };
