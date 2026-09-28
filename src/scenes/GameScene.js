@@ -78,6 +78,7 @@ export class GameScene extends Phaser.Scene {
     this.ending = false;
     this.couriers = [];
     this.staffMotion = {};
+    this.sellerPickedForOrder = false;
 
     this.cameras.main.setBackgroundColor(0x3b2250);
 
@@ -427,6 +428,7 @@ export class GameScene extends Phaser.Scene {
       }
       case 'sale': {
         this.staffReact(e.helper ? 'helper' : 'seller', 'sale');
+        if (!e.helper) this.sellerPickedForOrder = false;
         const v = this.people.get(e.id);
         if (v) {
           // клієнт іде з кульками
@@ -456,7 +458,13 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'helperTake': this.staffReact('helper', 'start'); break;
-      case 'pick': { this.staffReact('seller', 'pick'); const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; sfx.pick(); break; }
+      case 'pick': {
+        if (!this.sellerPickedForOrder) { this.staffReact('seller', 'pick'); this.sellerPickedForOrder = true; }
+        const [x, y] = this.barPos(e.key);
+        this.pickAnim = { key: e.key, x, y, t: 0 };
+        sfx.pick();
+        break;
+      }
       case 'outOfStock': { const [x, y] = this.barPos(e.key); this.floatText(x, y - 70, t('outOfStock'), C.red); this.flash[e.key] = this.time.now; sfx.wrong(); break; }
       case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t('perfect'), C.green); this.squashAt = this.time.now; sfx.perfect(); break;
       case 'under': this.floatText(this.nozzle[0] + 30, this.nozzle[1] - 190, t('underMore'), C.purple); this.squashAt = this.time.now; sfx.under(); break;
@@ -490,7 +498,7 @@ export class GameScene extends Phaser.Scene {
         this.floatText(TICKET.x + TICKET.w / 2, TICKET.y + TICKET.h + 30, t('mismatch'), C.red);
         sfx.wrong();
         break;
-      case 'onlinePacked': this.renderBundle(); this.hideTicket(true); this.sendCourier(e.value + e.tip, e.tip); sfx.pack(); break;
+      case 'onlinePacked': this.sellerPickedForOrder = false; this.renderBundle(); this.hideTicket(true); this.sendCourier(e.value + e.tip, e.tip); sfx.pack(); break;
       case 'onlineMissed':
         this.hideTicket(false);
         this.floatText(W - 230, TICKET.y + TICKET.h + 30, t('cancelled'), C.red);

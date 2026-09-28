@@ -86,6 +86,22 @@ test('seller and helper react only to their own orders', () => {
   assert.equal(scene.staffMotion.seller.kind, 'sale');
 });
 
+test('main seller leans once per order, helper sales do not reset the gesture', () => {
+  const scene = new GameScene();
+  scene.time = { now: 1000 }; scene.people = new Map(); scene.renderBundle = no;
+  scene.barPos = () => [0, 0];
+  const gestures = [];
+  scene.staffReact = (who, kind) => gestures.push({ who, kind });
+  scene.onEvent({ type: 'pick', key: 'pink' });
+  scene.onEvent({ type: 'pick', key: 'blue' });
+  scene.onEvent({ type: 'sale', helper: true, id: 1, tip: 0 });
+  scene.onEvent({ type: 'pick', key: 'yellow' });
+  assert.equal(gestures.filter(g => g.who === 'seller' && g.kind === 'pick').length, 1);
+  scene.onEvent({ type: 'sale', helper: false, id: 2, tip: 0 });
+  scene.onEvent({ type: 'pick', key: 'pink' });
+  assert.equal(gestures.filter(g => g.who === 'seller' && g.kind === 'pick').length, 2);
+});
+
 test('packing immediately redraws the remaining counter bundle', () => {
   const s = new Shift(CONFIG, { rng: makeRng(1), owned: ['foil', 'online'], stock: CONFIG.startStock });
   s.online = { id: 1, order: { pink: 1 }, at: 0, deadline: 75 };
