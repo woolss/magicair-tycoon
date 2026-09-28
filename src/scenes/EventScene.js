@@ -171,6 +171,11 @@ export class EventScene extends Phaser.Scene {
   // Заставка: машина з кульками проїжджає — «виїжджаємо»
   intro() {
     const van = this.add.container(-260, 560).setDepth(300);
+    if (this.textures.exists('event-van')) {
+      const art = this.add.image(0, -30, 'event-van');
+      art.setScale(380 / art.width);
+      van.add(art);
+    } else {
     const g = this.add.graphics();
     [[-30, -120, C.magenta], [0, -140, 0x4fa3ff], [30, -122, C.gold], [-5, -105, C.green]].forEach(([x, y, col]) => {
       g.lineStyle(2, C.greyDark, 1).lineBetween(x, y + 16, 0, -60); drawBalloon(g, x, y, 20, col);
@@ -181,6 +186,7 @@ export class EventScene extends Phaser.Scene {
     g.fillStyle(0x3a2340, 1).fillCircle(-70, 22, 18).fillCircle(80, 22, 18).fillStyle(0xc9c3d2, 1).fillCircle(-70, 22, 8).fillCircle(80, 22, 8);
     van.add(g);
     van.add(this.add.text(-25, -40, 'MagicAir', txt(18, C.magenta)).setOrigin(0.5));
+    }
     const dim = this.add.rectangle(W / 2, H / 2, W, H, 0xfff4fa, 0.85).setDepth(299);
     const title = this.add.text(W / 2, 700, t('ev_' + this.b.kind), txt(44, C.purple)).setOrigin(0.5).setDepth(300).setAlpha(0);
     const sub = this.add.text(W / 2, 760, t('eventArch', { n: this.b.slots.length }), txt(28, C.ink, { fontStyle: '700' })).setOrigin(0.5).setDepth(300).setAlpha(0);

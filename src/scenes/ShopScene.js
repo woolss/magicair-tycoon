@@ -4,7 +4,7 @@ import { CONFIG } from '../config.js';
 import { deriveParams } from '../logic.js';
 import { buyStock, buyUpgrade, upgradeState, stockCost, stockRoom, saveRun } from '../run.js';
 import { makeBooking, bookingShort } from '../event.js';
-import { backdrop, button, card, coinIcon, upIcon, soundToggle, countUp } from '../ui.js';
+import { backdrop, button, card, coinIcon, upIcon, upgradeArt, soundToggle, countUp } from '../ui.js';
 import * as sfx from '../sfx.js';
 
 const STEP = 5; // закупівля по 5 штук
@@ -75,8 +75,8 @@ export class ShopScene extends Phaser.Scene {
     const top = 250, h = 760;
     card(g, 50, top, W - 100, h, 32);
     g.fillStyle(C.purple, 1).fillRoundedRect(50, top, W - 100, 90, { tl: 32, tr: 32, bl: 0, br: 0 });
-    upIcon(g, 'car', 118, top + 50, 30);
     layer.add([dim, g]);
+    if (!upgradeArt(this, layer, 'car', 118, top + 50, 64)) upIcon(g, 'car', 118, top + 50, 30);
     const T = (x, y, str, style, ox = 0.5) => { const o = this.add.text(x, y, str, style).setOrigin(ox, 0.5); layer.add(o); return o; };
     T(W / 2 + 30, top + 45, t('eventOffer'), txt(34, C.white));
     T(W / 2, top + 130, t('ev_' + b.kind), txt(34, C.purple));
@@ -197,7 +197,7 @@ export class ShopScene extends Phaser.Scene {
       const st = upgradeState(CONFIG, run, u.id);
       const g = this.cardAt(y, 96);
       g.fillStyle(st === 'owned' ? 0xe3f8ea : 0xfff0fb, 1).fillCircle(90, y, 38);
-      upIcon(g, u.id, 88, y + 2, 28);
+      if (!upgradeArt(this, this.content, u.id, 88, y + 2, 64)) upIcon(g, u.id, 88, y + 2, 28);
       const name = this.add.text(145, y - 18, upName(u.id), txt(26, C.ink)).setOrigin(0, 0.5);
       const desc = this.add.text(145, y + 18, upDesc(u.id), txt(20, C.greyDark, { fontStyle: '700', wordWrap: { width: 355 } })).setOrigin(0, 0.5);
       if (desc.height > 34) {
@@ -207,8 +207,9 @@ export class ShopScene extends Phaser.Scene {
       }
       this.content.add([name, desc]);
       if (st === 'owned') {
-        g.fillStyle(C.green, 1).fillCircle(120, y - 26, 14);
-        g.lineStyle(4, C.white, 1).beginPath().moveTo(113, y - 26).lineTo(118, y - 20).lineTo(127, y - 32).strokePath();
+        const badge = this.add.graphics(); this.content.add(badge);
+        badge.fillStyle(C.green, 1).fillCircle(120, y - 26, 14);
+        badge.lineStyle(4, C.white, 1).beginPath().moveTo(113, y - 26).lineTo(118, y - 20).lineTo(127, y - 32).strokePath();
         this.content.add(this.add.text(610, y, t('owned'), txt(28, C.green)).setOrigin(0.5));
       } else if (st === 'locked') {
         this.content.add(this.add.text(610, y, t('needs', { name: upName(u.req) }), txt(19, C.greyDark, { align: 'center', wordWrap: { width: 150 } })).setOrigin(0.5));
@@ -224,8 +225,6 @@ export class ShopScene extends Phaser.Scene {
         }, st === 'available' ? C.magenta : C.grey, 28));
       }
     });
-    const y = 320 + list.length * 108 - 10;
-    this.content.add(this.add.text(W / 2, y, t(this.tab === 'shop' ? 'soonCar' : 'soon'), txt(22, C.greyDark, { fontStyle: '700' })).setOrigin(0.5));
   }
 
   floatNote(x, y, str) {

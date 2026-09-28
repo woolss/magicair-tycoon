@@ -83,7 +83,26 @@ export function coinIcon(g, x, y, r) {
   g.fillStyle(0xffffff, 0.7).fillCircle(x - r * 0.42, y - r * 0.42, r * 0.16);
 }
 
-// Іконки апгрейдів (намальовані формами, без тексту)
+// Окремі авторські PNG, прив'язані до контейнера картки.
+export function upgradeArt(scene, parent, id, x, y, size = 64) {
+  const keys = {
+    pump2: 'up-pump', pump3: 'up-pump', sign: 'up-sign',
+    confetti: 'up-confetti', foil: 'up-foil', online: 'up-online',
+    tank200: 'up-tank200', shop: 'up-shop', helper: 'up-helper', helper2: 'up-helper',
+    ads: 'up-ads', car: 'up-car', digits: 'bl-digit',
+  };
+  const key = keys[id];
+  if (!key || !scene.textures.exists(key)) return false;
+  const art = scene.add.image(x, y, key);
+  art.setScale(Math.min(size / art.width, size / art.height));
+  parent.add(art);
+  const level = { pump2: 'II', pump3: 'III', helper2: 'II' }[id];
+  if (level) parent.add(scene.add.text(x - size * 0.48, y + size * 0.2, level,
+    txt(16, C.white, { backgroundColor: '#693173', padding: { x: 3, y: 1 } })).setOrigin(0, 0));
+  return true;
+}
+
+// Резервні іконки, якщо арт не завантажився.
 export function upIcon(g, id, x, y, s = 30) {
   if (id === 'pump2' || id === 'pump3') {
     g.fillStyle(0x7c8a99, 1).fillRoundedRect(x - s * 0.55, y - s * 0.7, s * 1.1, s * 1.5, s * 0.2);
