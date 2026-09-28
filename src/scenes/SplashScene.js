@@ -17,6 +17,8 @@ export class SplashScene extends Phaser.Scene {
     for (const k of ['point', 'shop', 'venue']) this.load.image(`bg-${k}`, `assets/bg-${k}.jpg`);   // арт-фони
     for (const k of ['latex', 'confetti', 'heart', 'star', 'digit']) this.load.image(`bl-${k}`, `assets/bl-${k}.png`);   // арт-кульки
     this.load.image('counter', 'assets/counter.png');   // арт-прилавок із соплом і касою
+    for (const k of ['point', 'shop']) this.load.image(`room-${k}`, `assets/room-${k}.png`);
+    this.load.image('counter-v2', 'assets/counter-v2.png');
     for (const id of ['pump', 'sign', 'confetti', 'foil', 'online', 'shop', 'helper', 'ads', 'car', 'tank200']) {
       this.load.image(`up-${id}`, `assets/up-${id}.png`);
     }

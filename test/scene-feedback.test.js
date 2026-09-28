@@ -70,3 +70,28 @@ test('seller II has real names and terms in both languages', () => {
   }
   setLang('uk');
 });
+
+test('courier pauses, picks up smoothly and credits a delivery once before leaving', () => {
+  const scene = new GameScene();
+  const target = [...SPOT.courier];
+  const k = { pos: [target[0] + 1, target[1]], target, phase: 'in', cash: 100, tip: 0,
+    c: { setPosition() { return this; }, setDepth() { return this; }, destroy: no },
+    front: { setVisible: no }, back: { setVisible: no },
+    box: { setPosition: no }, hands: { add: no } };
+  scene.couriers = [k]; scene.time = { now: 1000 }; scene.heldCash = 100;
+  const tweens = []; scene.tweens = { add: t => tweens.push(t) };
+  let payments = 0; scene.flyCoins = () => payments++;
+  scene.moveCouriers(0.1);
+  assert.ok(Math.abs(k.pos[0] - target[0] - 0.7) < 1e-9);
+  k.pos = [...target]; scene.moveCouriers(0);
+  assert.equal(k.phase, 'wait');
+  scene.moveCouriers(0.4); assert.equal(tweens.length, 0);
+  scene.moveCouriers(0.06); assert.equal(tweens.length, 1);
+  assert.equal(tweens[0].duration, 800); assert.equal(payments, 0);
+  scene.moveCouriers(0.1); assert.equal(tweens.length, 1);
+  tweens[0].onComplete();
+  assert.equal(scene.heldCash, 0); assert.equal(payments, 1); assert.equal(k.phase, 'hold');
+  scene.moveCouriers(0.2); assert.equal(k.phase, 'hold');
+  scene.moveCouriers(0.2); assert.equal(k.phase, 'out');
+  scene.moveCouriers(0.1); assert.equal(payments, 1);
+});

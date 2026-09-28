@@ -712,7 +712,7 @@ export class GameScene extends Phaser.Scene {
     for (const k of [...this.couriers]) {
       const dx = k.target[0] - k.pos[0], dy = k.target[1] - k.pos[1];
       const dist = Math.hypot(dx, dy), moving = dist > 0.02;
-      if (moving) { const st = Math.min(dist, WALK * dt); k.pos[0] += (dx / dist) * st; k.pos[1] += (dy / dist) * st; }
+      if (moving) { const st = Math.min(dist, WALK * 0.6 * dt); k.pos[0] += (dx / dist) * st; k.pos[1] += (dy / dist) * st; }
       const [sx, sy] = P(k.pos[0], k.pos[1]);
       const bob = moving ? -Math.abs(Math.sin(this.time.now / 90)) * 4 : 0;
       k.c.setPosition(sx, sy + bob).setDepth(10 + sy / 2000);
@@ -720,19 +720,26 @@ export class GameScene extends Phaser.Scene {
       k.front.setVisible(faceUs); k.back.setVisible(!faceUs);
       flipArt(k, moving, dx - dy);
       if (k.phase === 'in' && !moving) {
+        k.phase = 'wait'; k.waitUntil = 0.45;
+      } else if (k.phase === 'wait') {
+        k.waitUntil -= dt;
+        if (k.waitUntil > 0) continue;
         // забирає коробку з прилавка
         k.phase = 'take';
         const [hx, hy] = [sx - 34, sy - 70];
         this.tweens.add({
-          targets: k.box, x: hx, y: hy, duration: 300, ease: 'Sine.easeInOut',
+          targets: k.box, x: hx, y: hy, duration: 800, ease: 'Sine.easeInOut',
           onComplete: () => {
             k.box.setPosition(-34, -70); k.hands.add(k.box);
             this.heldCash -= k.cash;
             this.flyCoins(sx, sy - 160, Math.min(8, 3 + Math.round(k.cash / 40)), k.cash);
             if (k.tip) sfx.tip();
-            k.phase = 'out'; k.target = SPOT.courierFrom;
+            k.phase = 'hold'; k.waitUntil = 0.35;
           },
         });
+      } else if (k.phase === 'hold') {
+        k.waitUntil -= dt;
+        if (k.waitUntil <= 0) { k.phase = 'out'; k.target = SPOT.courierFrom; }
       } else if (k.phase === 'out' && !moving) {
         this.couriers.splice(this.couriers.indexOf(k), 1);
         k.c.destroy();
