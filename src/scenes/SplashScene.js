@@ -14,9 +14,8 @@ export class SplashScene extends Phaser.Scene {
   preload() {
     for (const p of PARTS) this.load.svg(`logo-${p}`, `assets/logo-${p}.svg`, { width: 960, height: 560 });
     this.load.svg('logo-word', 'assets/logo-word.svg', { width: 922, height: 235 });   // для неонової вивіски
-    for (const k of ['point', 'shop', 'venue']) this.load.image(`bg-${k}`, `assets/bg-${k}.jpg`);   // арт-фони
+    this.load.image('bg-venue', 'assets/bg-venue.jpg');   // арт-фони
     for (const k of ['latex', 'confetti', 'heart', 'star', 'digit']) this.load.image(`bl-${k}`, `assets/bl-${k}.png`);   // арт-кульки
-    this.load.image('counter', 'assets/counter.png');   // арт-прилавок із соплом і касою
     for (const k of ['point', 'shop']) this.load.image(`room-${k}`, `assets/room-${k}.png`);
     this.load.image('counter-v2', 'assets/counter-v2.png');
     for (const id of ['pump', 'sign', 'confetti', 'foil', 'online', 'shop', 'helper', 'ads', 'car', 'tank200']) {

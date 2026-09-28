@@ -80,7 +80,7 @@ function unP(sx, sy, y) {
 }
 const SLOTS0 = SPOT.slots.map((p) => [...p]);   // місця біля прилавка без зсуву
 // З арт-прилавком: сопло — його верх, товар лежить на нижчій стільниці; продавці й місця покупців зсуваються разом із прилавком (черга лишається)
-function useCounterArt(rich, revised = false) {
+function useCounterArt(rich) {
   counterFoot = rich ? COUNTER_ART.at.shop : COUNTER_ART.at.point;
   const dy = counterFoot[1] - 5.9, z = COUNTER_ART.top, [tx, ty] = counterAt(...COUNTER_ART.tip);
   Object.assign(SPOT, {
@@ -89,13 +89,13 @@ function useCounterArt(rich, revised = false) {
     slots: SLOTS0.map(([x, y]) => [x, y + dy]),
   });
   // Коробка на вільному правому краю нового арту; руки кур'єра поруч із нею.
-  if (revised) {
+  {
     const [bx, by] = counterAt(1120, 700);
     SPOT.box = unP(bx, by, 5.2 + dy);
     const sum = (by + 90 - ISO.OY) / (ISO.S * 0.5);
     const diff = (bx + 34 - ISO.OX) / (C30 * ISO.S);
     SPOT.courier = [(sum + diff) / 2, (sum - diff) / 2];
-  } else SPOT.courier = [11.5, 2.8];
+  }
   SPOT.courierFrom = [SPOT.courier[0] + 5, SPOT.courier[1] - 2];
 }
 
@@ -147,10 +147,8 @@ function drawNeon(scene, rich) {
 
 // Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
 export function drawRoom(scene, rich = false) {
-  const revised = scene.textures.exists('counter-v2');
-  if (revised || scene.textures.exists('counter')) useCounterArt(rich, revised);
-  const updatedKey = rich ? 'room-shop' : 'room-point';
-  const key = scene.textures.exists(updatedKey) ? updatedKey : rich ? 'bg-shop' : 'bg-point';
+  if (scene.textures.exists('counter-v2')) useCounterArt(rich);
+  const key = rich ? 'room-shop' : 'room-point';
   if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key);
   const g = scene.add.graphics().setDepth(0);
   const R = 13, WH = 6, F = 19;
@@ -222,7 +220,7 @@ export function drawRoom(scene, rich = false) {
 
 // Прилавок, каса, сопло зі шлангом — перед продавцем
 export function drawCounter(scene, tankTop) {
-  const key = scene.textures.exists('counter-v2') ? 'counter-v2' : 'counter';
+  const key = 'counter-v2';
   if (scene.textures.exists(key)) {
     const [x, y] = counterAt(0, 0), { s, w, h } = COUNTER_ART;
     return scene.add.image(x, y, key).setOrigin(0).setDisplaySize(w * s, h * s).setDepth(2);
