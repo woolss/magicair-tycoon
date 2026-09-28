@@ -4,7 +4,7 @@ import { CONFIG } from '../config.js';
 import { Shift, makeRng, summarize, bundleCovers, heliumCost } from '../logic.js';
 import { endDay, saveRun } from '../run.js';
 import { availableMissions, missionProgress, recordMissionEvent } from '../missions.js';
-import { posePerson, queueRemark } from '../characterMotion.js';
+import { posePerson, queueRemark, staffGesture } from '../characterMotion.js';
 import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
@@ -77,6 +77,7 @@ export class GameScene extends Phaser.Scene {
     this.squashAt = -1e9;
     this.ending = false;
     this.couriers = [];
+    this.staffMotion = {};
 
     this.cameras.main.setBackgroundColor(0x3b2250);
 
@@ -85,6 +86,7 @@ export class GameScene extends Phaser.Scene {
     const [sx, sy] = P(...SPOT.seller);
     const seller = personSprite(this, 'ch-seller');
     this.sellerG = seller;
+    this.sellerHomeY = sy;
     if (seller) seller.setPosition(sx, sy).setDepth(1);
     else {
       const g = this.add.graphics().setDepth(1);
@@ -100,6 +102,7 @@ export class GameScene extends Phaser.Scene {
       const [hx, hy] = P(...SPOT.helper);
       hg.setPosition(hx, hy);
       this.helperG = hg;
+      this.helperHomeY = hy;
       this.helperRing = this.add.graphics().setDepth(59);
     }
     drawCounter(this, tankTop);
@@ -345,7 +348,7 @@ export class GameScene extends Phaser.Scene {
       v.front.setVisible(faceUs); v.back.setVisible(!faceUs);
       flipArt(v, moving, dx - dy);
       const waiting = v.slot < 0 && v.state !== 'leave' && !moving;
-      const impatient = waiting && s.t - v.cust.arrivedAt >= 12;
+      const impatient = waiting && s.t - v.cust.arrivedAt >= 9;
       posePerson(v.front, this.time.now, v.id, moving, impatient);
       posePerson(v.back, this.time.now, v.id, moving, impatient);
       v.bubble.setVisible(!moving && v.slot >= 0);
@@ -383,7 +386,25 @@ export class GameScene extends Phaser.Scene {
     this.moveCouriers(deltaMs / 1000);
     posePerson(this.sellerG, this.time.now, 2);
     posePerson(this.helperG, this.time.now, 4, !!this.shift.helper?.cust);
+    this.poseStaff('seller');
+    this.poseStaff('helper');
     this.renderDynamic(deltaMs / 1000);
+  }
+
+  staffReact(who, kind) {
+    this.staffMotion ??= {};
+    this.staffMotion[who] = { kind, at: this.time.now };
+  }
+
+  poseStaff(who) {
+    const sprite = who === 'seller' ? this.sellerG : this.helperG;
+    if (!sprite) return;
+    const motion = this.staffMotion[who];
+    const gesture = motion ? staffGesture(this.time.now, motion.at, motion.kind) : { y: 0, angle: 0 };
+    const working = who === 'helper' && !!this.shift.helper?.cust;
+    const bob = working ? -Math.abs(Math.sin(this.time.now / 190)) * 2 : 0;
+    sprite.y = (who === 'seller' ? this.sellerHomeY : this.helperHomeY) + bob + gesture.y;
+    sprite.setAngle(sprite.angle + gesture.angle);
   }
 
   barPos(key) { const sl = this.slots[this.keys.indexOf(key)]; return [sl.x, sl.y]; }
@@ -405,6 +426,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'sale': {
+        this.staffReact(e.helper ? 'helper' : 'seller', 'sale');
         const v = this.people.get(e.id);
         if (v) {
           // клієнт іде з кульками
@@ -433,11 +455,13 @@ export class GameScene extends Phaser.Scene {
         sfx.wrong();
         break;
       }
-      case 'pick': { const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; sfx.pick(); break; }
+      case 'helperTake': this.staffReact('helper', 'start'); break;
+      case 'pick': { this.staffReact('seller', 'pick'); const [x, y] = this.barPos(e.key); this.pickAnim = { key: e.key, x, y, t: 0 }; sfx.pick(); break; }
       case 'outOfStock': { const [x, y] = this.barPos(e.key); this.floatText(x, y - 70, t('outOfStock'), C.red); this.flash[e.key] = this.time.now; sfx.wrong(); break; }
       case 'inflated': this.floatText(this.nozzle[0] + 20, this.nozzle[1] - 190, t('perfect'), C.green); this.squashAt = this.time.now; sfx.perfect(); break;
       case 'under': this.floatText(this.nozzle[0] + 30, this.nozzle[1] - 190, t('underMore'), C.purple); this.squashAt = this.time.now; sfx.under(); break;
       case 'pop':
+        this.staffReact('seller', 'oops');
         sfx.pop();
         this.cameras.main.shake(140, 0.006);
         this.burst(this.nozzle[0], this.nozzle[1] - 90, ITEM(e.key).color);
@@ -445,6 +469,7 @@ export class GameScene extends Phaser.Scene {
         this.flash[e.key] = this.time.now;
         break;
       case 'tie': {
+        this.staffReact('seller', 'tie');
         sfx.tie();
         this.renderBundle();
         const item = this.bundleView.list[this.bundleView.list.length - 1];
@@ -548,7 +573,6 @@ export class GameScene extends Phaser.Scene {
     if (this.helperRing) {
       const hr = this.helperRing.clear(), hp = s.helper;
       const [hx, hy] = P(...SPOT.helper);
-      this.helperG.y = hy + (hp.cust ? -Math.abs(Math.sin(this.time.now / 110)) * 3 : 0);
       if (hp.cust) {
         const k = Math.min(1, (s.t - hp.startAt) / CONFIG.helper.serveSec);
         hr.fillStyle(C.white, 0.95).fillCircle(hx, hy - 178, 16).lineStyle(6, 0x4f8dff, 1).beginPath()

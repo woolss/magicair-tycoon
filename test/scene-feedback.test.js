@@ -55,7 +55,7 @@ test('scene enables walking guard and releases helper only at final counter posi
 test('queue remark disappears as soon as its customer moves to the counter', () => {
   const scene = new GameScene();
   const customer = { id: 8, arrivedAt: 0, order: { pink: 1 } };
-  scene.shift = { t: 13, queue: [customer], customers: [] };
+  scene.shift = { t: 9.5, queue: [customer], customers: [] };
   scene.people = new Map(); scene.time = { now: 1000 };
   const figure = () => ({ scaleX: 1, scaleY: 1, setVisible: no, setScale: no, setAngle: no });
   const talk = { visible: false, setVisible(value) { this.visible = value; } };
@@ -71,6 +71,19 @@ test('queue remark disappears as soon as its customer moves to the counter', () 
   scene.shift.customers = [customer];
   scene.syncPeople(.01);
   assert.equal(talk.visible, false);
+});
+
+test('seller and helper react only to their own orders', () => {
+  const scene = new GameScene();
+  scene.time = { now: 1000 }; scene.people = new Map(); scene.renderBundle = no;
+  scene.onEvent({ type: 'helperTake', id: 1 });
+  assert.equal(scene.staffMotion.helper.kind, 'start');
+  assert.equal(scene.staffMotion.seller, undefined);
+  scene.onEvent({ type: 'sale', helper: true, id: 1, tip: 0 });
+  assert.equal(scene.staffMotion.helper.kind, 'sale');
+  assert.equal(scene.staffMotion.seller, undefined);
+  scene.onEvent({ type: 'sale', helper: false, id: 2, tip: 0 });
+  assert.equal(scene.staffMotion.seller.kind, 'sale');
 });
 
 test('packing immediately redraws the remaining counter bundle', () => {
