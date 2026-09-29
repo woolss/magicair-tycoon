@@ -9,7 +9,7 @@ import * as sfx from '../sfx.js';
 
 const ITEM = (k) => CONFIG.items[k];
 const ARCH = { x: W / 2, y: 690, r: 270 };      // центр і радіус арки
-const NOZ = { x: W / 2, y: 1000 };               // де надувається кулька
+const NOZ = { x: W / 2, y: 930 };                // де надувається кулька (вище плашки «Обери колір»)
 const BTN = { x: 606, y: 1168, r: 84 };
 const PANEL = { y: 1064, h: 208 };
 const METER = { x: 664, top: 760, h: 210 };
