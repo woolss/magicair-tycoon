@@ -66,22 +66,23 @@ export const ART = {
 };
 const artAt = (px, py) => [ART.x + px * ART.k, ART.y + py * ART.k];
 
-// Центри опори на верхніх площинах трьох правих полиць (арт 1024×1536).
-// У кожної полиці однаковий нахил; невеликий зсув углиб площини ставить предмет на неї.
+// Точки опори на трьох правих полицях (арт 1024×1536).
+// Опора кожного предмета — нижній непрозорий піксель PNG, без відриву від полиці.
 const DECOR_SPOTS = [
-  ['decor-lamp', 'decor-heart-lamp', 928, 499, 78],
-  ['decor-gifts', 'decor-gifts', 928, 589, 76],
-  ['decor-plant', 'decor-plant', 928, 681, 68],
+  ['decor-lamp', 'decor-heart-lamp', 928, 490, 78, 225 / 234],
+  ['decor-gifts', 'decor-gifts', 928, 604, 88, 227 / 234],
+  ['decor-plant', 'decor-plant', 928, 700, 82, 252 / 256],
 ];
 
 export function drawStudioDecor(scene, studio, x = ART.x, y = ART.y, k = ART.k, parent = null) {
   const shown = studioState({ studio }).decor;
-  for (const [id, key, px, py, width] of DECOR_SPOTS) {
+  for (const [id, key, px, py, width, foot] of DECOR_SPOTS) {
     if (!shown.includes(id) || !scene.textures.exists(key)) continue;
     const [cx, cy] = [x + px * k, y + py * k];
-    const shade = scene.add.ellipse(cx, cy, width * 0.53 * k, 9 * k, 0x633354, 0.24).setDepth(0);
-    const art = scene.add.image(cx, cy + 2 * k, key).setOrigin(0.5, 1).setDisplaySize(width * k, width * k * scene.textures.get(key).getSourceImage().height / scene.textures.get(key).getSourceImage().width).setDepth(0);
-    if (parent) parent.add([shade, art]);
+    const source = scene.textures.get(key).getSourceImage();
+    const art = scene.add.image(cx, cy, key).setOrigin(0.5, foot)
+      .setDisplaySize(width * k, width * k * source.height / source.width).setDepth(0);
+    if (parent) parent.add(art);
   }
 }
 

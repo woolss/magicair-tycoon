@@ -9,10 +9,9 @@ import { backdrop, button, card, coinIcon, upIcon, upgradeArt, soundToggle, coun
 import * as sfx from '../sfx.js';
 
 const STEP = 5; // закупівля по 5 штук
-const TAB_PAGES = [['stock', 'upgrades', 'shop', 'missions'], ['upgrades', 'shop', 'missions', 'studio']];
-const TAB_X = [135, 285, 435, 585];
-const TAB_W = 138;
-const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop', missions: 'tabMissions' };
+const TABS = ['stock', 'upgrades', 'shop', 'missions', 'studio'];
+const TAB_W = 128;
+const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop', missions: 'tabMissions', studio: 'studioTitle' };
 const STAGE3 = ['shop', 'digits', 'helper', 'helper2', 'ads', 'car'];   // вкладка «Магазин»
 
 // Між змінами: закупівля товару і апгрейди
@@ -21,8 +20,7 @@ export class ShopScene extends Phaser.Scene {
 
   create() {
     backdrop(this);
-    this.tabPage = this.registry.get('shopTabPage') || 0;
-    this.tab = this.tabPage ? 'shop' : 'stock';
+    this.tab = 'stock';
     this.missionPage = 0;
     this.pending = {};
     this.content = this.add.container(0, 0);
@@ -40,7 +38,7 @@ export class ShopScene extends Phaser.Scene {
 
     // вкладки: сегментований перемикач
     const tg = this.add.graphics();
-    card(tg, 40, 168, W - 80, 76, 38);
+    card(tg, 28, 168, W - 56, 76, 38);
     this.tabNav = this.add.container(0, 0);
 
     this.startBtn = button(this, W / 2, 1180, 520, 110, '', () => {
@@ -142,34 +140,22 @@ export class ShopScene extends Phaser.Scene {
 
   renderTabs(run) {
     this.tabNav.removeAll(true);
-    TAB_PAGES[this.tabPage].forEach((id, i) => {
-      const x = TAB_X[i], active = this.tab === id;
+    const visible = run.owned.includes('shop') ? TABS : TABS.slice(0, 4);
+    visible.forEach((id, i) => {
+      const x = visible.length === 5 ? 94 + i * 132 : 125 + i * 160;
+      const active = this.tab === id;
       if (active) {
         const hi = this.add.graphics().fillStyle(C.magenta, 1)
           .fillRoundedRect(x - TAB_W / 2 + 3, 174, TAB_W - 6, 64, 32);
         this.tabNav.add(hi);
       }
-      const label = id === 'studio' ? t('studioTitle') : t(TAB_LABEL[id]);
-      this.tabNav.add(this.add.text(x, 206, label, txt(21, active ? C.white : C.purple)).setOrigin(0.5));
+      this.tabNav.add(this.add.text(x, 206, t(TAB_LABEL[id]), txt(20, active ? C.white : C.purple)).setOrigin(0.5));
       this.tabNav.add(this.add.zone(x, 206, TAB_W, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (id === 'studio') { sfx.click(); this.registry.set('shopTabPage', 1); this.scene.start('studio'); return; }
+        if (id === 'studio') { sfx.click(); this.scene.start('studio'); return; }
         if (this.tab === id) return;
         sfx.click(); this.tab = id; this.render();
       }));
     });
-    if (this.tabPage === 0 && run.owned.includes('shop')) this.addTabArrow('›', 688, 1);
-    if (this.tabPage === 1) this.addTabArrow('‹', 32, 0);
-  }
-
-  addTabArrow(glyph, x, page) {
-    this.tabNav.add(this.add.text(x, 206, glyph, txt(40, C.purple)).setOrigin(0.5));
-    this.tabNav.add(this.add.zone(x, 206, 50, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-      sfx.click();
-      this.tabPage = page;
-      this.registry.set('shopTabPage', page);
-      if (!TAB_PAGES[page].includes(this.tab)) this.tab = page ? 'shop' : 'stock';
-      this.render();
-    }));
   }
 
   renderMissions(run) {
