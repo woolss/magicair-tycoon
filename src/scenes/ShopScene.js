@@ -9,8 +9,9 @@ import { backdrop, button, card, coinIcon, upIcon, upgradeArt, soundToggle, coun
 import * as sfx from '../sfx.js';
 
 const STEP = 5; // закупівля по 5 штук
-const TABS = { stock: 125, upgrades: 285, shop: 445, missions: 605 };
-const TAB_W = 165;
+const TAB_PAGES = [['stock', 'upgrades', 'shop', 'missions'], ['upgrades', 'shop', 'missions', 'studio']];
+const TAB_X = [135, 285, 435, 585];
+const TAB_W = 138;
 const TAB_LABEL = { stock: 'tabStock', upgrades: 'tabUpgrades', shop: 'tabShop', missions: 'tabMissions' };
 const STAGE3 = ['shop', 'digits', 'helper', 'helper2', 'ads', 'car'];   // вкладка «Магазин»
 
@@ -20,7 +21,8 @@ export class ShopScene extends Phaser.Scene {
 
   create() {
     backdrop(this);
-    this.tab = 'stock';
+    this.tabPage = this.registry.get('shopTabPage') || 0;
+    this.tab = this.tabPage ? 'shop' : 'stock';
     this.missionPage = 0;
     this.pending = {};
     this.content = this.add.container(0, 0);
@@ -39,22 +41,12 @@ export class ShopScene extends Phaser.Scene {
     // вкладки: сегментований перемикач
     const tg = this.add.graphics();
     card(tg, 40, 168, W - 80, 76, 38);
-    this.tabHi = this.add.graphics();
-    this.tabTexts = {};
-    for (const [id, x] of Object.entries(TABS)) {
-      this.tabTexts[id] = this.add.text(x, 206, t(TAB_LABEL[id]), txt(id === 'missions' ? 22 : 25, C.purple)).setOrigin(0.5);
-      this.add.zone(x, 206, TAB_W, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-        if (this.tab === id) return;
-        sfx.click();
-        this.tab = id; this.render();
-      });
-    }
+    this.tabNav = this.add.container(0, 0);
 
     this.startBtn = button(this, W / 2, 1180, 520, 110, '', () => {
       saveRun(this.run);
       this.scene.start('game');
     });
-    this.studioBtn = button(this, 96, 1060, 146, 68, t('studioTitle'), () => this.scene.start('studio'), C.purple, 23);
     soundToggle(this, W - 60, 1180 - 120, 150, -68);
 
     this.render();
@@ -140,14 +132,44 @@ export class ShopScene extends Phaser.Scene {
   render() {
     this.content.removeAll(true);
     const run = this.run;
-    this.studioBtn.setVisible(run.owned.includes('shop'));
     this.titleText.setText(t('shopTitle', { n: run.day }));
     this.startBtn.label.setText(t('startDay', { n: run.day }));
-    this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(TABS[this.tab] - TAB_W / 2 + 4, 174, TAB_W - 8, 64, 32);
-    for (const [id, tx] of Object.entries(this.tabTexts)) tx.setColor(id === this.tab ? '#ffffff' : '#b338b5');
+    this.renderTabs(run);
     if (this.tab === 'stock') this.renderStock(run);
     else if (this.tab === 'missions') this.renderMissions(run);
     else this.renderUpgrades(run, CONFIG.upgrades.filter((u) => (this.tab === 'shop') === STAGE3.includes(u.id)));
+  }
+
+  renderTabs(run) {
+    this.tabNav.removeAll(true);
+    TAB_PAGES[this.tabPage].forEach((id, i) => {
+      const x = TAB_X[i], active = this.tab === id;
+      if (active) {
+        const hi = this.add.graphics().fillStyle(C.magenta, 1)
+          .fillRoundedRect(x - TAB_W / 2 + 3, 174, TAB_W - 6, 64, 32);
+        this.tabNav.add(hi);
+      }
+      const label = id === 'studio' ? t('studioTitle') : t(TAB_LABEL[id]);
+      this.tabNav.add(this.add.text(x, 206, label, txt(21, active ? C.white : C.purple)).setOrigin(0.5));
+      this.tabNav.add(this.add.zone(x, 206, TAB_W, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        if (id === 'studio') { sfx.click(); this.registry.set('shopTabPage', 1); this.scene.start('studio'); return; }
+        if (this.tab === id) return;
+        sfx.click(); this.tab = id; this.render();
+      }));
+    });
+    if (this.tabPage === 0 && run.owned.includes('shop')) this.addTabArrow('›', 688, 1);
+    if (this.tabPage === 1) this.addTabArrow('‹', 32, 0);
+  }
+
+  addTabArrow(glyph, x, page) {
+    this.tabNav.add(this.add.text(x, 206, glyph, txt(40, C.purple)).setOrigin(0.5));
+    this.tabNav.add(this.add.zone(x, 206, 50, 76).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      sfx.click();
+      this.tabPage = page;
+      this.registry.set('shopTabPage', page);
+      if (!TAB_PAGES[page].includes(this.tab)) this.tab = page ? 'shop' : 'stock';
+      this.render();
+    }));
   }
 
   renderMissions(run) {

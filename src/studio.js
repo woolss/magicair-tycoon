@@ -1,7 +1,7 @@
 // Косметика магазину: не впливає на зміну, товар і доходи.
 export const STUDIO_ITEMS = [
-  { id: 'room-lavender', group: 'room', price: 3500, art: 'room-shop-lavender' },
-  { id: 'room-peach', group: 'room', price: 4000, art: 'room-shop-peach' },
+  { id: 'room-lavender', group: 'room', price: 3000, art: 'room-shop-lavender' },
+  { id: 'room-peach', group: 'room', price: 3500, art: 'room-shop-peach' },
   { id: 'seller-lavender', group: 'seller', price: 1400, art: 'ch-seller-lavender' },
   { id: 'seller-sunshine', group: 'seller', price: 1600, art: 'ch-seller-sunshine' },
   { id: 'helper-lavender', group: 'helper', price: 1400, art: 'ch-helper-lavender' },

@@ -1,7 +1,7 @@
 import { W, C, txt } from '../theme.js';
 import { t, studioName } from '../i18n.js';
 import { backdrop, button, card, coinIcon } from '../ui.js';
-import { drawStudioDecor } from '../iso.js';
+import { drawStudioDecor, fitStaffArt } from '../iso.js';
 import { chooseDefaultOutfit, chooseStudio, studioState, STUDIO_ITEMS } from '../studio.js';
 import { saveRun } from '../run.js';
 import * as sfx from '../sfx.js';
@@ -125,7 +125,7 @@ export class StudioScene extends Phaser.Scene {
       if (who === 'helper' && !this.run.owned.includes('helper') && this.group !== 'helper') continue;
       const key = preview[who] === 'default' ? `ch-${who}` : `ch-${preview[who]}`;
       if (!this.textures.exists(key)) continue;
-      this.preview.add(this.add.image(px, 619, key).setOrigin(0.5, 0.95).setScale(0.65));
+      this.preview.add(fitStaffArt(this.add.image(px, 619, key), key, 0.65));
     }
     this.previewLabel.setText(item ? studioName(item.id, this.group) : t('studioPreview'));
   }

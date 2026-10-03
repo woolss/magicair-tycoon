@@ -66,11 +66,12 @@ export const ART = {
 };
 const artAt = (px, py) => [ART.x + px * ART.k, ART.y + py * ART.k];
 
-// Фіксовані місця на трьох правих полицях. Координати — оригінал фону 1024×1536.
+// Центри опори на верхніх площинах трьох правих полиць (арт 1024×1536).
+// У кожної полиці однаковий нахил; невеликий зсув углиб площини ставить предмет на неї.
 const DECOR_SPOTS = [
-  ['decor-lamp', 'decor-heart-lamp', 937, 486, 110],
-  ['decor-gifts', 'decor-gifts', 923, 601, 100],
-  ['decor-plant', 'decor-plant', 923, 704, 108],
+  ['decor-lamp', 'decor-heart-lamp', 928, 499, 78],
+  ['decor-gifts', 'decor-gifts', 928, 589, 76],
+  ['decor-plant', 'decor-plant', 928, 681, 68],
 ];
 
 export function drawStudioDecor(scene, studio, x = ART.x, y = ART.y, k = ART.k, parent = null) {
@@ -78,8 +79,8 @@ export function drawStudioDecor(scene, studio, x = ART.x, y = ART.y, k = ART.k, 
   for (const [id, key, px, py, width] of DECOR_SPOTS) {
     if (!shown.includes(id) || !scene.textures.exists(key)) continue;
     const [cx, cy] = [x + px * k, y + py * k];
-    const shade = scene.add.ellipse(cx, cy - 3 * k, width * 0.6 * k, 13 * k, 0x633354, 0.24).setDepth(0);
-    const art = scene.add.image(cx, cy, key).setOrigin(0.5, 0.98).setDisplaySize(width * k, width * k * scene.textures.get(key).getSourceImage().height / scene.textures.get(key).getSourceImage().width).setDepth(0);
+    const shade = scene.add.ellipse(cx, cy, width * 0.53 * k, 9 * k, 0x633354, 0.24).setDepth(0);
+    const art = scene.add.image(cx, cy + 2 * k, key).setOrigin(0.5, 1).setDisplaySize(width * k, width * k * scene.textures.get(key).getSourceImage().height / scene.textures.get(key).getSourceImage().width).setDepth(0);
     if (parent) parent.add([shade, art]);
   }
 }
@@ -265,10 +266,25 @@ export function drawCounter(scene, tankTop) {
   return g;
 }
 
+// Зріст і точка опори одягу рівняються по намальованому силуету, а не по рамці PNG.
+// Межі альфа-каналу для кожної форми: [верх, низ] у вихідних 186 px.
+const STAFF_BOUNDS = {
+  'ch-seller-lavender': [2, 182], 'ch-seller-sunshine': [0, 186],
+  'ch-helper-lavender': [0, 175], 'ch-helper-sunshine': [0, 172],
+};
+
+export function fitStaffArt(sprite, key, baseScale) {
+  const bounds = STAFF_BOUNDS[key];
+  if (!bounds) return sprite.setOrigin(0.5, 0.95).setScale(baseScale);
+  const ratio = 185 / (bounds[1] - bounds[0]);
+  const footOffset = 185 - 0.95 * 186;
+  return sprite.setOrigin(0.5, (bounds[1] - footOffset / ratio) / 186).setScale(baseScale * ratio);
+}
+
 // Спрайт персонажа (арт), ноги в (0, 0). Немає текстури — null, тоді малюємо кодом.
 export function personSprite(scene, key) {
   if (!scene.textures.exists(key)) return null;
-  return scene.add.image(0, 0, key).setOrigin(0.5, 0.95).setScale(0.85);
+  return fitStaffArt(scene.add.image(0, 0, key), key, 0.85);
 }
 
 // Людина: ноги в (0, 0) контейнера. back — спиною до нас.

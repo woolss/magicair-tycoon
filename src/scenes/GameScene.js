@@ -57,9 +57,9 @@ const HELPER = { shirt: 0xffffff, pants: 0x3f5f9e, skin: 0xe0ae88, hair: 0x1e141
 const SELLER = { shirt: 0xffffff, pants: 0x5b4a8a, skin: 0xf6c9a8, hair: 0x6b3b1f, apron: C.magenta };
 
 // Міміка лежить поверх незмінного арт-спрайта; координати — від його точки опори біля ніг.
-function makeStaffFaces(scene, who) {
+function makeStaffFaces(scene, who, sprite) {
   const eyes = who === 'seller' ? [-18, 7] : [-19, 6];
-  const eyeY = who === 'seller' ? -123 : -122;
+  const eyeY = (who === 'seller' ? 54 : 55) - sprite.originY * sprite.height;
   const focus = scene.add.graphics().setDepth(1.1).setVisible(false);
   focus.lineStyle(2, 0x41232f, 0.9);
   focus.beginPath().moveTo(eyes[0] - 5, eyeY - 10).lineTo(eyes[0] + 4, eyeY - 7)
@@ -109,7 +109,7 @@ export class GameScene extends Phaser.Scene {
     const seller = personSprite(this, sellerKey);
     this.sellerG = seller;
     this.sellerHomeY = sy;
-    if (seller) { seller.setPosition(sx, sy).setDepth(1); this.staffFaces.seller = makeStaffFaces(this, 'seller'); }
+    if (seller) { seller.setPosition(sx, sy).setDepth(1); this.staffFaces.seller = makeStaffFaces(this, 'seller', seller); }
     else {
       const g = this.add.graphics().setDepth(1);
       drawPerson(g, SELLER, false);
@@ -120,7 +120,7 @@ export class GameScene extends Phaser.Scene {
     if (this.shift.helper) {
       const helperKey = this.shift.p.shop && studio.helper !== 'default' ? `ch-${studio.helper}` : 'ch-helper';
       let hg = personSprite(this, helperKey);
-      if (hg) { hg.setDepth(1); this.staffFaces.helper = makeStaffFaces(this, 'helper'); }
+      if (hg) { hg.setDepth(1); this.staffFaces.helper = makeStaffFaces(this, 'helper', hg); }
       else { hg = this.add.graphics().setDepth(1); drawPerson(hg, HELPER, false); }
       const [hx, hy] = P(...SPOT.helper);
       hg.setPosition(hx, hy);

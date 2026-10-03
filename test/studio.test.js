@@ -37,6 +37,7 @@ test('кожен предмет і костюм купується окремо;
   assert.equal(studioState(run).seller, 'default');
   run = chooseStudio(run, 'seller-lavender');
   assert.equal(run.money, 5500);
-  assert.equal(chooseStudio(run, 'room-peach')?.money, 1500);
+  assert.equal(chooseStudio(run, 'room-lavender')?.money, 2500);
+  assert.equal(chooseStudio(run, 'room-peach')?.money, 2000);
   assert.equal(chooseStudio({ ...run, money: 100 }, 'room-peach'), null);
 });
