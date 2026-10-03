@@ -54,6 +54,7 @@ export class ShopScene extends Phaser.Scene {
       saveRun(this.run);
       this.scene.start('game');
     });
+    this.studioBtn = button(this, 96, 1060, 146, 68, t('studioTitle'), () => this.scene.start('studio'), C.purple, 23);
     soundToggle(this, W - 60, 1180 - 120, 150, -68);
 
     this.render();
@@ -139,6 +140,7 @@ export class ShopScene extends Phaser.Scene {
   render() {
     this.content.removeAll(true);
     const run = this.run;
+    this.studioBtn.setVisible(run.owned.includes('shop'));
     this.titleText.setText(t('shopTitle', { n: run.day }));
     this.startBtn.label.setText(t('startDay', { n: run.day }));
     this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(TABS[this.tab] - TAB_W / 2 + 4, 174, TAB_W - 8, 64, 32);

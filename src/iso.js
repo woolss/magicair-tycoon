@@ -1,5 +1,6 @@
 // Ізометричний магазин: проекція, зал, прилавок, люди. Малюємо простими формами (до арту).
 import { C, drawBalloon, drawItem, itemArt } from './theme.js';
+import { studioState } from './studio.js';
 
 // Масштаб і кут кімнати підігнані під арт-фони (кут підлоги на фоні = P(0, 0))
 export const ISO = { S: 49.2, OX: 352, OY: 400 };
@@ -65,6 +66,24 @@ export const ART = {
 };
 const artAt = (px, py) => [ART.x + px * ART.k, ART.y + py * ART.k];
 
+// Фіксовані місця на трьох правих полицях. Координати — оригінал фону 1024×1536.
+const DECOR_SPOTS = [
+  ['decor-lamp', 'decor-heart-lamp', 937, 486, 110],
+  ['decor-gifts', 'decor-gifts', 923, 601, 100],
+  ['decor-plant', 'decor-plant', 923, 704, 108],
+];
+
+export function drawStudioDecor(scene, studio, x = ART.x, y = ART.y, k = ART.k, parent = null) {
+  const shown = studioState({ studio }).decor;
+  for (const [id, key, px, py, width] of DECOR_SPOTS) {
+    if (!shown.includes(id) || !scene.textures.exists(key)) continue;
+    const [cx, cy] = [x + px * k, y + py * k];
+    const shade = scene.add.ellipse(cx, cy - 3 * k, width * 0.6 * k, 13 * k, 0x633354, 0.24).setDepth(0);
+    const art = scene.add.image(cx, cy, key).setOrigin(0.5, 0.98).setDisplaySize(width * k, width * k * scene.textures.get(key).getSourceImage().height / scene.textures.get(key).getSourceImage().width).setDepth(0);
+    if (parent) parent.add([shade, art]);
+  }
+}
+
 // Арт-прилавок (кадр 1280×980 після обрізки): масштаб, передній-лівий нижній кут, верх сопла — у пікселях кадру.
 // at — куди на підлозі стає цей кут: на точці — як прилавок кодом; у магазині — ближче до стіни з вивіскою (закриває шланг на фоні).
 export const COUNTER_ART = { s: 0.38, w: 1280, h: 980, base: [21, 389], tip: [171, 7], top: 1.3, at: { point: [1.8, 5.9], shop: [1.8, 5.2] } };
@@ -100,13 +119,14 @@ function useCounterArt(rich) {
 }
 
 // Кімната з арт-фоном: фон + товар на його полицях + неон
-function drawArtRoom(scene, rich, key) {
+function drawArtRoom(scene, rich, key, studio) {
   const A = rich ? ART.shop : ART.point;
   scene.add.image(ART.x, ART.y, key).setOrigin(0).setDisplaySize(1024 * ART.k, 1536 * ART.k).setDepth(0);
   const g = scene.add.graphics().setDepth(0);
   const heart = { kind: 'heart', color: 0xff3b6b }, star = { kind: 'star', color: 0xffc21a };
   const cols = [0xff5fb8, 0x4fa3ff, 0xffc933, 0xb338b5, 0x3ccf6e];
   A.shelves.forEach(([[x0, y0], [x1, y1], n], row) => {
+    if (rich && row >= 3) return;   // праві полиці відведено під косметику, не під товар
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n, [x, y] = artAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
       const it = row % 2 === 1 && i % 3 === 1 ? heart : row % 2 === 1 && i % 3 === 2 ? star : { kind: 'latex', color: cols[(i + row * 2) % 5] };
@@ -116,6 +136,7 @@ function drawArtRoom(scene, rich, key) {
     }
   });
   drawNeon(scene, rich);
+  if (rich) drawStudioDecor(scene, studio);
   SPOT.door = ART.door;
   return { g, tankTop: null };   // шланг і сопло — частина арту прилавка
 }
@@ -146,10 +167,12 @@ function drawNeon(scene, rich) {
 }
 
 // Підлога, стіни, декор, полиці, балони — все, що позаду продавця. rich — магазин (ступінь 3): плитка, арка, вогники
-export function drawRoom(scene, rich = false) {
+export function drawRoom(scene, rich = false, studio = null) {
   if (scene.textures.exists('counter-v2')) useCounterArt(rich);
-  const key = rich ? 'room-shop' : 'room-point';
-  if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key);
+  const chosen = rich ? studioState({ studio }).room : 'default';
+  const customKey = chosen !== 'default' ? `room-shop-${chosen.slice(5)}` : null;
+  const key = customKey && scene.textures.exists(customKey) ? customKey : rich ? 'room-shop' : 'room-point';
+  if (scene.textures.exists(key)) return drawArtRoom(scene, rich, key, studio);
   const g = scene.add.graphics().setDepth(0);
   const R = 13, WH = 6, F = 19;
   if (rich) {

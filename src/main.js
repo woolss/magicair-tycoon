@@ -5,6 +5,7 @@ import { StartScene } from './scenes/StartScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { SummaryScene } from './scenes/SummaryScene.js';
 import { ShopScene } from './scenes/ShopScene.js';
+import { StudioScene } from './scenes/StudioScene.js';
 import { EventScene } from './scenes/EventScene.js';
 import { unlock, pause, musicSet } from './sfx.js';
 
@@ -31,7 +32,7 @@ async function boot() {
     input: { activePointers: 2 },
     render: { mipmapFilter: 'LINEAR_MIPMAP_LINEAR' },   // арт зменшується без «мила» й ряботиння (текстури 2ⁿ)
     audio: { noAudio: true },   // свої звуки в sfx.js
-    scene: [SplashScene, StartScene, GameScene, SummaryScene, ShopScene, EventScene],
+    scene: [SplashScene, StartScene, GameScene, SummaryScene, ShopScene, StudioScene, EventScene],
   });
   game.registry.set('opts', opts);
   // на зміні музика жвавіша (у меню її вмикає backdrop)

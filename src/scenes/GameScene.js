@@ -8,6 +8,7 @@ import { posePerson, queueRemark, staffGesture, staffExpression } from '../chara
 import { P, SPOT, drawRoom, drawCounter, drawPerson, personSprite, lookFor } from '../iso.js';
 import { coinIcon, soundToggle, button } from '../ui.js';
 import * as sfx from '../sfx.js';
+import { studioState } from '../studio.js';
 
 const ITEM = (k) => CONFIG.items[k];
 // Арт-спрайти намальовані в 3/4: обличчям — дивляться вліво, спиною — вправо-вгору (на прилавок).
@@ -101,9 +102,11 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(0x3b2250);
 
     // Сцена: зал → продавець → прилавок → кулька/зв'язка → люди → інтерфейс
-    const { tankTop } = drawRoom(this, this.shift.p.shop);
+    const studio = studioState(this.run);
+    const { tankTop } = drawRoom(this, this.shift.p.shop, studio);
     const [sx, sy] = P(...SPOT.seller);
-    const seller = personSprite(this, 'ch-seller');
+    const sellerKey = this.shift.p.shop && studio.seller !== 'default' ? `ch-${studio.seller}` : 'ch-seller';
+    const seller = personSprite(this, sellerKey);
     this.sellerG = seller;
     this.sellerHomeY = sy;
     if (seller) { seller.setPosition(sx, sy).setDepth(1); this.staffFaces.seller = makeStaffFaces(this, 'seller'); }
@@ -115,7 +118,8 @@ export class GameScene extends Phaser.Scene {
       this.add.text(sx, sy - 64, 'MagicAir', txt(10, C.white)).setOrigin(0.5).setDepth(1);
     }
     if (this.shift.helper) {
-      let hg = personSprite(this, 'ch-helper');
+      const helperKey = this.shift.p.shop && studio.helper !== 'default' ? `ch-${studio.helper}` : 'ch-helper';
+      let hg = personSprite(this, helperKey);
       if (hg) { hg.setDepth(1); this.staffFaces.helper = makeStaffFaces(this, 'helper'); }
       else { hg = this.add.graphics().setDepth(1); drawPerson(hg, HELPER, false); }
       const [hx, hy] = P(...SPOT.helper);

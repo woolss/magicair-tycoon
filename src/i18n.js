@@ -123,6 +123,14 @@ const T = {
     soon: 'Далі — вкладка «Магазин»',
     startDay: 'Почати день {n}',
     notEnough: 'Не вистачає грошей',
+    studioTitle: 'Студія', studioBack: 'Назад', studioPreview: 'Мій магазин',
+    studioTab_room: 'Зал', studioTab_seller: 'Продавець', studioTab_helper: 'Помічниця', studioTab_decor: 'Декор',
+    studioInstalled: 'Встановлено', studioOwned: 'Придбано', studioInstall: 'Поставити', studioRemove: 'Прибрати', studioBuy: 'Купити',
+    studioNames: { default_room: 'Звичайний зал', default_seller: 'Звичайна форма', default_helper: 'Звичайна форма',
+      'room-lavender': 'Лавандовий зал', 'room-peach': 'Персиковий зал',
+      'seller-lavender': 'Лавандова форма', 'seller-sunshine': 'Сонячна форма',
+      'helper-lavender': 'Лавандова форма', 'helper-sunshine': 'Сонячна форма',
+      'decor-lamp': 'Лампа-серце', 'decor-gifts': 'Подарунки', 'decor-plant': 'Вазон' },
     itemNames: { pink: 'Рожева', blue: 'Блакитна', yellow: 'Жовта', confetti: 'З конфеті', heart: 'Фольга-серце', star: 'Фольга-зірка', digit: 'Фольга-цифра' },
     upNames: { pump2: 'Насос II', sign: 'Вивіска', confetti: 'Кульки з конфеті', foil: 'Фольга: серця й зірки', tank200: 'Балон 200', pump3: 'Насос III', online: 'Онлайн-замовлення', shop: 'Переїзд у магазин', digits: 'Фольговані цифри', helper: 'Другий продавець', helper2: 'Продавець II', ads: 'Реклама', car: 'Машина' },
     upDesc: { pump2: 'Надуває швидше', sign: 'Клієнтів +15%', confetti: 'Новий товар, 30 ₴', foil: 'Новий товар, 55 ₴', tank200: 'Гелію вдвічі більше', pump3: 'Надуває ще швидше', online: 'Доставка кур\'єром, +60 ₴', shop: 'Оренда 150 ₴, клієнтів +20%, терплячіші', digits: 'Дні народження, цифра 100 ₴', helper: 'Сам обслуговує клієнтів, яким треба до 3 кульок. Зарплата 100 ₴/день', helper2: 'До 5 кульок за 8 с. Зарплата 110 ₴/день', ads: 'Більше днів народження', car: 'Виїзди: арки на свята, 500–900 ₴' },
@@ -250,6 +258,14 @@ const T = {
     soon: 'Дальше — вкладка «Магазин»',
     startDay: 'Начать день {n}',
     notEnough: 'Не хватает денег',
+    studioTitle: 'Студия', studioBack: 'Назад', studioPreview: 'Мой магазин',
+    studioTab_room: 'Зал', studioTab_seller: 'Продавец', studioTab_helper: 'Помощница', studioTab_decor: 'Декор',
+    studioInstalled: 'Установлено', studioOwned: 'Куплено', studioInstall: 'Поставить', studioRemove: 'Убрать', studioBuy: 'Купить',
+    studioNames: { default_room: 'Обычный зал', default_seller: 'Обычная форма', default_helper: 'Обычная форма',
+      'room-lavender': 'Лавандовый зал', 'room-peach': 'Персиковый зал',
+      'seller-lavender': 'Лавандовая форма', 'seller-sunshine': 'Солнечная форма',
+      'helper-lavender': 'Лавандовая форма', 'helper-sunshine': 'Солнечная форма',
+      'decor-lamp': 'Лампа-сердце', 'decor-gifts': 'Подарки', 'decor-plant': 'Вазон' },
     itemNames: { pink: 'Розовый', blue: 'Голубой', yellow: 'Жёлтый', confetti: 'С конфетти', heart: 'Фольга-сердце', star: 'Фольга-звезда', digit: 'Фольга-цифра' },
     upNames: { pump2: 'Насос II', sign: 'Вывеска', confetti: 'Шары с конфетти', foil: 'Фольга: сердца и звёзды', tank200: 'Баллон 200', pump3: 'Насос III', online: 'Онлайн-заказы', shop: 'Переезд в магазин', digits: 'Фольгированные цифры', helper: 'Второй продавец', helper2: 'Продавец II', ads: 'Реклама', car: 'Машина' },
     upDesc: { pump2: 'Надувает быстрее', sign: 'Клиентов +15%', confetti: 'Новый товар, 30 ₴', foil: 'Новый товар, 55 ₴', tank200: 'Гелия вдвое больше', pump3: 'Надувает ещё быстрее', online: 'Доставка курьером, +60 ₴', shop: 'Аренда 150 ₴, клиентов +20%, терпеливее', digits: 'Дни рождения, цифра 100 ₴', helper: 'Сам обслуживает клиентов, которым нужно до 3 шаров. Зарплата 100 ₴/день', helper2: 'До 5 шаров за 8 с. Зарплата 110 ₴/день', ads: 'Больше дней рождения', car: 'Выезды: арки на праздники, 500–900 ₴' },
@@ -264,6 +280,7 @@ export const toggleLang = () => setLang(lang === 'uk' ? 'ru' : 'uk');
 export const itemName = (k) => T[lang].itemNames[k] ?? k;
 export const upName = (k) => T[lang].upNames[k] ?? k;
 export const upDesc = (k) => T[lang].upDesc[k] ?? '';
+export const studioName = (id, group) => T[lang].studioNames[id === 'default' ? `default_${group}` : id] ?? id;
 
 export function t(key, vars = {}) {
   const s = T[lang][key] ?? key;
