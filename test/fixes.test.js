@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CONFIG as cfg } from '../src/config.js';
 import { Shift, deriveParams, makeRng } from '../src/logic.js';
-import { upgradeState } from '../src/run.js';
+import { buyUpgrade, upgradeState } from '../src/run.js';
 
 const mk = (owned) => new Shift(cfg, { rng: makeRng(3), owned, stock: { pink: 20, blue: 20, yellow: 20, heart: 10, star: 10 } });
 
@@ -53,4 +53,13 @@ test('реклама — лише після цифр; продавець II —
   assert.equal(upgradeState(cfg, { ...run, owned: [...run.owned, 'digits'] }, 'ads'), 'available');
   assert.equal(upgradeState(cfg, run, 'helper2'), 'locked');
   assert.equal(cfg.helium.refillSec, 10);
+});
+
+test('переїзд відкривається після онлайн-замовлень', () => {
+  const run = { money: 3000, owned: ['foil'] };
+  assert.equal(upgradeState(cfg, run, 'shop'), 'locked');
+  assert.equal(buyUpgrade(cfg, run, 'shop'), null);
+  const online = { ...run, owned: ['foil', 'online'] };
+  assert.equal(upgradeState(cfg, online, 'shop'), 'available');
+  assert.deepEqual(buyUpgrade(cfg, online, 'shop').owned, ['foil', 'online', 'shop']);
 });

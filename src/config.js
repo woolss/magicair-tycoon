@@ -66,7 +66,7 @@ export const CONFIG = {
     { id: 'pump3',    price: 900, req: 'pump2', effect: { pump: 2 } },
     { id: 'online',   price: 1200, req: 'foil', effect: { online: true } },
     // ступінь 3 — магазин
-    { id: 'shop',     price: 2500, req: 'foil', effect: { shop: true } },
+    { id: 'shop',     price: 2500, req: 'online', effect: { shop: true } },
     { id: 'digits',   price: 2000, req: 'shop', effect: { unlock: 'digits' } },
     { id: 'helper',   price: 2400, req: 'shop', effect: { helper: true } },
     { id: 'helper2',  price: 1800, req: 'helper', effect: { helperMax: 5 } },   // продавець II: замовлення до 5 кульок
