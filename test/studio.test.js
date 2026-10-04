@@ -19,7 +19,7 @@ test('старе збереження: студія відкривається �
 });
 
 test('кожен предмет і костюм купується окремо; перемикання не списує гроші', () => {
-  let run = { day: 25, money: 10000, stock: {}, owned: ['shop'] };
+  let run = { day: 25, money: 10000, stock: {}, owned: ['shop', 'helper'] };
   run = chooseStudio(run, 'seller-lavender');
   assert.equal(run.money, 8600);
   assert.equal(studioState(run).helper, 'default');
@@ -40,4 +40,11 @@ test('кожен предмет і костюм купується окремо;
   assert.equal(chooseStudio(run, 'room-lavender')?.money, 2500);
   assert.equal(chooseStudio(run, 'room-peach')?.money, 2000);
   assert.equal(chooseStudio({ ...run, money: 100 }, 'room-peach'), null);
+});
+
+test('форму помічниці не можна купити, поки не найнято другого продавця', () => {
+  const run = { day: 20, money: 5000, stock: {}, owned: ['shop'] };
+  assert.equal(chooseStudio(run, 'helper-lavender'), null);
+  assert.equal(chooseStudio({ ...run, owned: ['shop', 'helper'] }, 'helper-lavender').money, 3600);
+  assert.equal(chooseStudio(run, 'seller-lavender').money, 3600);
 });

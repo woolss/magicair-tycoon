@@ -34,6 +34,7 @@ export function chooseStudio(run, id) {
   if (id !== 'default' && !IDS[id]) return null;
   if (id === 'default') return { ...run, studio: { ...s, room: 'default' } };
   const item = IDS[id];
+  if (item.group === 'helper' && !run.owned.includes('helper')) return null;   // форма — лише коли є другий продавець
   const buying = !s.owned.includes(id);
   if (buying && run.money < item.price) return null;
   const next = { ...s, owned: buying ? [...s.owned, id] : s.owned };

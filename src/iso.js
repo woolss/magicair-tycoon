@@ -123,12 +123,13 @@ function useCounterArt(rich) {
 // Кімната з арт-фоном: фон + товар на його полицях + неон
 function drawArtRoom(scene, rich, key, studio) {
   const A = rich ? ART.shop : ART.point;
+  const decor = rich ? studioState({ studio }).decor : [];
   scene.add.image(ART.x, ART.y, key).setOrigin(0).setDisplaySize(1024 * ART.k, 1536 * ART.k).setDepth(0);
   const g = scene.add.graphics().setDepth(0);
   const heart = { kind: 'heart', color: 0xff3b6b }, star = { kind: 'star', color: 0xffc21a };
   const cols = [0xff5fb8, 0x4fa3ff, 0xffc933, 0xb338b5, 0x3ccf6e];
   A.shelves.forEach(([[x0, y0], [x1, y1], n], row) => {
-    if (rich && row >= 3) return;   // праві полиці відведено під косметику, не під товар
+    if (rich && row >= 3 && decor.includes(DECOR_SPOTS[row - 3][0])) return;   // на праву полицю з декором товар не ставимо
     for (let i = 0; i < n; i++) {
       const t = (i + 0.5) / n, [x, y] = artAt(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
       const it = row % 2 === 1 && i % 3 === 1 ? heart : row % 2 === 1 && i % 3 === 2 ? star : { kind: 'latex', color: cols[(i + row * 2) % 5] };

@@ -41,6 +41,7 @@ export class StudioScene extends Phaser.Scene {
     GROUPS.forEach((id, i) => {
       this.tabLabels.push(this.add.text(GROUP_X[i], 713, t(`studioTab_${id}`), txt(23, C.purple)).setOrigin(0.5));
       this.add.zone(GROUP_X[i], 713, GROUP_W, 74).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        if (this.locked(id)) { sfx.wrong(); this.note(t('studioNeedHelper')); return; }
         if (this.group === id) return;
         sfx.click(); this.group = id; this.selected = null; this.render();
       });
@@ -54,12 +55,19 @@ export class StudioScene extends Phaser.Scene {
     this.money.setText(`${this.run.money} ₴`);
     const gi = GROUPS.indexOf(this.group);
     this.tabHi.clear().fillStyle(C.magenta, 1).fillRoundedRect(GROUP_X[gi] - GROUP_W / 2 + 2, 682, GROUP_W - 4, 62, 31);
-    this.tabLabels.forEach((label, i) => label.setColor(i === gi ? '#ffffff' : '#b338b5'));
+    this.tabLabels.forEach((label, i) => label.setColor(i === gi ? '#ffffff' : '#b338b5').setAlpha(this.locked(GROUPS[i]) ? 0.35 : 1));
     this.rows.removeAll(true);
     const items = STUDIO_ITEMS.filter((it) => it.group === this.group);
     if (this.group !== 'decor') items.unshift({ id: 'default', group: this.group, price: 0 });
     items.forEach((item, i) => this.drawRow(item, 818 + i * 112));
     this.drawPreview();
+  }
+
+  locked(group) { return group === 'helper' && !this.run.owned.includes('helper'); }
+
+  note(str) {
+    const tx = this.add.text(W / 2, 780, str, txt(24, C.red, { stroke: '#ffffff', strokeThickness: 5 })).setOrigin(0.5).setDepth(20);
+    this.tweens.add({ targets: tx, y: 740, alpha: 0, duration: 1400, ease: 'Sine.easeIn', onComplete: () => tx.destroy() });
   }
 
   drawRow(item, y) {
@@ -122,7 +130,7 @@ export class StudioScene extends Phaser.Scene {
     // Костюми можна роздивитися без запуску зміни.
     const people = [['seller', 318], ['helper', 401]];
     for (const [who, px] of people) {
-      if (who === 'helper' && !this.run.owned.includes('helper') && this.group !== 'helper') continue;
+      if (who === 'helper' && !this.run.owned.includes('helper')) continue;
       const key = preview[who] === 'default' ? `ch-${who}` : `ch-${preview[who]}`;
       if (!this.textures.exists(key)) continue;
       this.preview.add(fitStaffArt(this.add.image(px, 619, key), key, 0.65));
