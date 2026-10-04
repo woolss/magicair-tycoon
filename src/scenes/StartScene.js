@@ -1,5 +1,5 @@
 import { W, C, txt, drawBalloon } from '../theme.js';
-import { t, toggleLang } from '../i18n.js';
+import { t } from '../i18n.js';
 import { CONFIG } from '../config.js';
 import { newRun, loadRun, saveRun } from '../run.js';
 import { backdrop, floaters, button, card, soundToggle } from '../ui.js';
@@ -72,7 +72,6 @@ export class StartScene extends Phaser.Scene {
     }
 
     soundToggle(this, 60, 60);
-    button(this, W - 90, 60, 130, 64, t('lang'), () => { toggleLang(); this.scene.restart(); }, C.purple, 26);
     this.shopLink();
   }
 

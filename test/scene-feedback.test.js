@@ -4,7 +4,7 @@ import { CONFIG } from '../src/config.js';
 import { Shift, makeRng } from '../src/logic.js';
 import { newRun } from '../src/run.js';
 import { SPOT, ART, P } from '../src/iso.js';
-import { setLang, upName, upDesc } from '../src/i18n.js';
+import { upName, upDesc } from '../src/i18n.js';
 globalThis.Phaser = { Scene: class {} };
 const { GameScene, route } = await import('../src/scenes/GameScene.js');
 const no = () => {};
@@ -154,12 +154,9 @@ test('packing immediately redraws the remaining counter bundle', () => {
   assert.deepEqual(rendered, ['blue']);
 });
 
-test('seller II has real names and terms in both languages', () => {
-  for (const lang of ['uk', 'ru']) {
-    setLang(lang); assert.notEqual(upName('helper2'), 'helper2');
-    assert.match(upDesc('helper2'), /110/); assert.match(upDesc('helper2'), /5/);
-  }
-  setLang('uk');
+test('seller II has real names and terms', () => {
+  assert.notEqual(upName('helper2'), 'helper2');
+  assert.match(upDesc('helper2'), /110/); assert.match(upDesc('helper2'), /5/);
 });
 
 test('courier pauses, picks up smoothly and credits a delivery once before leaving', () => {

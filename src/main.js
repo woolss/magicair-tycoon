@@ -1,5 +1,4 @@
 import { W, H, C } from './theme.js';
-import { setLang } from './i18n.js';
 import { SplashScene } from './scenes/SplashScene.js';
 import { StartScene } from './scenes/StartScene.js';
 import { GameScene } from './scenes/GameScene.js';
@@ -9,13 +8,12 @@ import { StudioScene } from './scenes/StudioScene.js';
 import { EventScene } from './scenes/EventScene.js';
 import { unlock, pause, musicSet } from './sfx.js';
 
-// Параметри для тестів: ?shift=20 (секунд у зміні), ?seed=1, ?lang=ru
+// Параметри для тестів: ?shift=20 (секунд у зміні), ?seed=1
 const q = new URLSearchParams(location.search);
 const opts = {
   shift: q.has('shift') ? Number(q.get('shift')) : undefined,
   seed: q.has('seed') ? Number(q.get('seed')) : undefined,
 };
-setLang(q.get('lang') || 'uk');
 
 // звук дозволяється лише після дотику до екрана
 for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, unlock, { passive: true });
